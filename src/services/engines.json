@@ -10,6 +10,55 @@
     ]
   },
   {
+    "id": "google-scholar",
+    "name": "Google Scholar",
+    "urlTemplate": "https://scholar.google.com/scholar?hl=en&q=%s",
+    "favicon": "🎓",
+    "sources": []
+  },
+  {
+    "id": "semantic-scholar",
+    "name": "Semantic Scholar",
+    "urlTemplate": "https://www.semanticscholar.org/search?q=%s",
+    "favicon": "S",
+    "sources": []
+  },
+  {
+    "id": "pubmed",
+    "name": "PubMed",
+    "urlTemplate": "https://pubmed.ncbi.nlm.nih.gov/?term=%s",
+    "favicon": "",
+    "sources": []
+  },
+  {
+    "id": "arxiv",
+    "name": "arXiv",
+    "urlTemplate": "https://arxiv.org/search/?query=%s&searchtype=all",
+    "favicon": "arX",
+    "sources": []
+  },
+  {
+    "id": "crossref",
+    "name": "Crossref",
+    "urlTemplate": "https://search.crossref.org/?q=%s",
+    "favicon": "C",
+    "sources": []
+  },
+  {
+    "id": "wikipedia-en",
+    "name": "Wikipedia (EN)",
+    "urlTemplate": "https://en.wikipedia.org/wiki/Special:Search?search=%s",
+    "favicon": "",
+    "sources": []
+  },
+  {
+    "id": "wikipedia-zh",
+    "name": "Wikipedia (ZH)",
+    "urlTemplate": "https://zh.wikipedia.org/wiki/Special:Search?search=%s",
+    "favicon": "维",
+    "sources": []
+  },
+  {
     "id": "bing",
     "name": "Bing",
     "urlTemplate": "https://www.bing.com/search?q=%s",
@@ -19,59 +68,24 @@
     ]
   },
   {
-    "id": "pubmed",
-    "name": "PubMed",
-    "urlTemplate": "https://pubmed.ncbi.nlm.nih.gov/?term=%s",
-    "favicon": "",
-    "sources": [
-    ]
-  },
-  {
-    "id": "wikipedia-en",
-    "name": "Wikipedia (EN)",
-    "urlTemplate": "https://en.wikipedia.org/wiki/%s",
-    "favicon": "",
-    "sources": [
-    ]
-  },
-  {
-    "id": "wikipedia-zh",
-    "name": "Wikipedia (ZH)",
-    "urlTemplate": "https://zh.wikipedia.org/wiki/%s",
-    "favicon": "维",
-    "sources": [
-    ]
-  },
-  {
     "id": "youdao",
     "name": "有道词典",
     "urlTemplate": "https://www.youdao.com/result?word=%s&lang=en",
     "favicon": "有",
-    "sources": [
-    ]
+    "sources": []
   },
   {
     "id": "zdic",
     "name": "汉典",
     "urlTemplate": "https://www.zdic.net/hans/%s",
     "favicon": "汉",
-    "sources": [
-    ]
-  },
-  {
-    "id": "google-scholar",
-    "name": "Google Scholar",
-    "urlTemplate": "https://scholar.google.com/scholar?hl=en&q=%s",
-    "favicon": "🎓",
-    "sources": [
-    ]
+    "sources": []
   },
   {
     "id": "natanalysis",
     "name": "江南知识库",
     "urlTemplate": "https://q.natanalysis.com/search?q=%s",
     "favicon": "南",
-    "sources": [
-    ]
+    "sources": []
   }
 ]

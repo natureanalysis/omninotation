@@ -1,5 +1,5 @@
 import { getLocalIconUrl } from "@/services/color"
-import type { Annotation, AnnotationEntry, Bookmark, BookmarkFolder, Group, UserProfile, Reply, Visibility, ToolbarConfig, ToolbarSearchEngine, ToolbarStyle, AnnotationType, MarkStyle } from "@/types"
+import type { Annotation, AnnotationEntry, Bookmark, BookmarkFolder, Group, PageCategory, UserProfile, Reply, Visibility, ToolbarConfig, ToolbarSearchEngine, ToolbarStyle, AnnotationType, MarkStyle } from "@/types"
 
 import defaultEnginesJson from "./engines.json"
 
@@ -227,6 +227,58 @@ export async function updateBookmarkTags(url: string, tags: string[]): Promise<v
   if (!bm) return
   bm.tags = tags
   await safeSet({ [BOOKMARKS_KEY]: bookmarks })
+}
+
+export function getDefaultPageCategories(): PageCategory[] {
+  return [
+    { id: "to-read", name: "To Read", icon: "📖", color: "#fbbf24" },
+    { id: "important", name: "Important", icon: "⭐", color: "#ef4444" },
+    { id: "read", name: "Read", icon: "✅", color: "#22c55e" },
+    { id: "annotated", name: "Annotated", icon: "💬", color: "#3b82f6" }
+  ]
+}
+
+const PAGE_CATEGORIES_KEY = "page_categories"
+
+export async function getPageCategories(): Promise<PageCategory[]> {
+  const result = await safeGet(PAGE_CATEGORIES_KEY)
+  const saved = result[PAGE_CATEGORIES_KEY] as PageCategory[] | undefined
+  return saved && saved.length > 0 ? saved : getDefaultPageCategories()
+}
+
+export async function savePageCategories(categories: PageCategory[]): Promise<void> {
+  await safeSet({ [PAGE_CATEGORIES_KEY]: categories })
+}
+
+export async function setPageCategory(url: string, categoryId: string | undefined): Promise<void> {
+  const bookmarks = await getBookmarks()
+  const bm = bookmarks.find((b) => b.url === url)
+  if (!bm) {
+    const cat = categoryId ? (await getPageCategories()).find((c) => c.id === categoryId) : undefined
+    if (!cat) return
+    const newBookmark: Bookmark = {
+      id: crypto.randomUUID(),
+      url,
+      title: url,
+      createdAt: new Date().toISOString(),
+      categoryId
+    }
+    bookmarks.unshift(newBookmark)
+    await safeSet({ [BOOKMARKS_KEY]: bookmarks })
+    return
+  }
+
+  if (categoryId) bm.categoryId = categoryId
+  else delete bm.categoryId
+  await safeSet({ [BOOKMARKS_KEY]: bookmarks })
+}
+
+export async function getPageCategoryForUrl(url: string): Promise<PageCategory | undefined> {
+  const bookmarks = await getBookmarks()
+  const bm = bookmarks.find((b) => b.url === url)
+  if (!bm?.categoryId) return undefined
+  const categories = await getPageCategories()
+  return categories.find((c) => c.id === bm.categoryId)
 }
 
 // Hierarchical replies — reply to a specific reply

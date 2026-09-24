@@ -210,17 +210,21 @@ async function updateActionIcon(tabId: number, url: string | undefined) {
   }
 
   await ensureIcons()
-  const isBookmarked = await storage.isBookmarked(url)
-  const icon = isBookmarked ? goldIcon : greenIcon
+  const bookmarks = await storage.getBookmarks()
+  const bookmark = bookmarks.find((b) => b.url === url)
+  const categories = await storage.getPageCategories()
+  const category = bookmark?.categoryId ? categories.find((c) => c.id === bookmark.categoryId) : undefined
+  const isBookmarked = !!bookmark
+  const baseColor = category?.color || (isBookmarked ? GOLD : GREEN)
+  const icon = isBookmarked ? await createTintedIcon(baseColor) : greenIcon
 
   if (icon) {
     chrome.action.setIcon({ tabId, imageData: { 32: icon } })
   }
 
-  // Also set a small badge indicator for extra clarity
   if (isBookmarked) {
-    chrome.action.setBadgeBackgroundColor({ tabId, color: GOLD })
-    chrome.action.setBadgeText({ tabId, text: "★" })
+    chrome.action.setBadgeBackgroundColor({ tabId, color: baseColor })
+    chrome.action.setBadgeText({ tabId, text: category?.icon || "★" })
   } else {
     chrome.action.setBadgeText({ tabId, text: "" })
   }

@@ -99,6 +99,14 @@ export interface BookmarkFolder {
   createdAt: string
 }
 
+export interface PageCategory {
+  id: string
+  name: string
+  icon: string
+  color: string
+  description?: string
+}
+
 export interface Bookmark {
   id: string
   url: string
@@ -107,6 +115,7 @@ export interface Bookmark {
   folderId?: string
   visibility?: Visibility
   groupId?: string
+  categoryId?: string
   createdAt: string
 }
 
