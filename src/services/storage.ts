@@ -281,6 +281,39 @@ export async function getPageCategoryForUrl(url: string): Promise<PageCategory |
   return categories.find((c) => c.id === bm.categoryId)
 }
 
+export async function getSuggestedPageCategory(url: string, title = ""): Promise<PageCategory | undefined> {
+  const categories = await getPageCategories()
+  const text = `${url} ${title}`.toLowerCase()
+
+  const categoryHints: Array<{ id: string; keywords: string[] }> = [
+    { id: "important", keywords: ["paper", "research", "study", "journal", "analysis", "report", "abstract", "doi", "arxiv", "scholar", "pubmed", "nature", "science"] },
+    { id: "to-read", keywords: ["blog", "tutorial", "guide", "learning", "docs", "reference", "manual", "howto", "course", "notes", "wiki"] },
+    { id: "read", keywords: ["wikipedia", "encyclopedia", "article", "news", "readme", "documentation", "overview"] },
+    { id: "annotated", keywords: ["annotation", "highlight", "notes", "memo", "bookmark", "workspace", "project"] }
+  ]
+
+  let bestMatch: { category: PageCategory; score: number } | undefined
+
+  for (const hint of categoryHints) {
+    const category = categories.find((c) => c.id === hint.id)
+    if (!category) continue
+    const score = hint.keywords.reduce((total, keyword) => total + (text.includes(keyword) ? 2 : 0), 0)
+    if (score > 0 && (!bestMatch || score > bestMatch.score)) {
+      bestMatch = { category, score }
+    }
+  }
+
+  if (bestMatch) return bestMatch.category
+
+  const bookmarks = await getBookmarks()
+  const bookmark = bookmarks.find((b) => b.url === url)
+  if (bookmark?.categoryId) {
+    return categories.find((category) => category.id === bookmark.categoryId)
+  }
+
+  return categories[0]
+}
+
 // Hierarchical replies — reply to a specific reply
 export async function addNestedReply(url: string, annotationId: string, parentReplyId: string, reply: Reply): Promise<void> {
   const key = getKey(url)

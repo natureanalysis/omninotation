@@ -28,6 +28,7 @@ export default function SidePanel() {
   const [bookmarkTags, setBookmarkTags] = useState<string[]>([])
   const [pageCategories, setPageCategories] = useState<ReturnType<typeof storage.getDefaultPageCategories>>([])
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
+  const [suggestedCategoryId, setSuggestedCategoryId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<"annotations" | "categories">("annotations")
   const [showTagInput, setShowTagInput] = useState(false)
   const [tagInput, setTagInput] = useState("")
@@ -114,7 +115,13 @@ export default function SidePanel() {
         setBookmarkTime(currentBm?.createdAt || null)
         setBookmarkTags(currentBm?.tags || [])
         setSelectedCategoryId(currentBm?.categoryId ?? null)
-        setPageCategories(await storage.getPageCategories())
+        const categories = await storage.getPageCategories()
+        setPageCategories(categories)
+        const suggested = await storage.getSuggestedPageCategory(tab.url, tab.title || "")
+        setSuggestedCategoryId(suggested?.id ?? null)
+        if (!currentBm?.categoryId && suggested && categories.some((c) => c.id === suggested.id)) {
+          setSelectedCategoryId(suggested.id)
+        }
         await fetchPositionsAndSort(data, order.length > 0 ? order : null)
       }
     } catch (e) {
@@ -338,6 +345,7 @@ export default function SidePanel() {
     if (!url) return
     await storage.setPageCategory(url, categoryId ?? undefined)
     setSelectedCategoryId(categoryId)
+    if (categoryId) setSuggestedCategoryId(categoryId)
     if (!bookmarked) setBookmarked(true)
     const bm = (await storage.getBookmarks()).find((b) => b.url === url)
     setBookmarkTime(bm?.createdAt || null)
@@ -600,6 +608,19 @@ export default function SidePanel() {
               <button onClick={() => handleCategorySelect(null)} className="text-[10px] text-gray-500 hover:text-red-500">Clear</button>
             )}
           </div>
+          {suggestedCategoryId && (
+            <div className="rounded-md border border-blue-200 bg-blue-50 px-2 py-1.5 text-[10px] text-blue-700">
+              Suggested: <span className="font-semibold">{pageCategories.find((c) => c.id === suggestedCategoryId)?.name || "Unspecified"}</span>
+              {selectedCategoryId !== suggestedCategoryId && (
+                <button
+                  onClick={() => handleCategorySelect(suggestedCategoryId)}
+                  className="ml-2 underline underline-offset-2 hover:text-blue-900"
+                >
+                  Apply
+                </button>
+              )}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-2">
             {pageCategories.map((category) => {
               const selected = selectedCategoryId === category.id
