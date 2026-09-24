@@ -63,6 +63,19 @@ function setupContextMenu() {
   })
 }
 
+async function ensureOptionalPageAccess(tab?: chrome.tabs.Tab): Promise<boolean> {
+  if (!tab?.url) return false
+
+  const origins = ["https://*/*", "http://*/*"]
+  try {
+    const hasAccess = await chrome.permissions.contains({ origins })
+    if (hasAccess) return true
+    return await chrome.permissions.request({ origins })
+  } catch {
+    return false
+  }
+}
+
 chrome.runtime.onInstalled.addListener(() => {
   console.log("[OmniNotation] Extension installed")
   setupContextMenu()
@@ -71,9 +84,10 @@ chrome.runtime.onInstalled.addListener(() => {
 // Re-register on startup (also covers dev reloads where onInstalled doesn't fire)
 setupContextMenu()
 
-chrome.contextMenus.onClicked.addListener((info, tab) => {
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   const item = MARK_STYLE_ITEMS.find((i) => i.id === info.menuItemId)
   if (item && tab?.id && info.selectionText) {
+    await ensureOptionalPageAccess(tab)
     chrome.tabs.sendMessage(tab.id, {
       type: "CONTEXT_MENU_SAVE",
       text: info.selectionText,
@@ -87,9 +101,11 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     }
   }
   if (info.menuItemId === "omninotation-delete-annotation" && tab?.id) {
+    await ensureOptionalPageAccess(tab)
     chrome.tabs.sendMessage(tab.id, { type: "CONTEXT_MENU_DELETE" }).catch(() => {})
   }
   if (info.menuItemId === "omninotation-copy-link-name" && tab?.id) {
+    await ensureOptionalPageAccess(tab)
     chrome.tabs.sendMessage(tab.id, { type: "COPY_LINK_NAME" }).catch(() => {})
   }
 })
@@ -107,7 +123,8 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 })
 
 // Click extension icon to open Chrome side panel
-chrome.action.onClicked.addListener((tab) => {
+chrome.action.onClicked.addListener(async (tab) => {
+  await ensureOptionalPageAccess(tab)
   if (tab.windowId) {
     chrome.sidePanel.open({ windowId: tab.windowId }).catch(() => {})
   }
