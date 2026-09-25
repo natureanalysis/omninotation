@@ -245,7 +245,45 @@ const translations = {
     exportTags: "标签",
     exportReplies: "回复",
     // background/index.ts – context menu on links
-    contextMenuCopyLinkName: "复制链接名称"
+    contextMenuCopyLinkName: "复制链接名称",
+
+    // Axiom Hub（登录 / 分享）
+    hubSectionTitle: "Axiom Hub 账户",
+    hubAccountHint: "登录后可将批注分享到 Axiom Hub 社区。",
+    hubNotLoggedIn: "未登录",
+    hubLoggedInAs: (name: string) => `已登录：${name}`,
+    hubUsername: "用户名",
+    hubUsernamePlaceholder: "3–32 位字母、数字、_ 或 -",
+    hubPassword: "密码",
+    hubPasswordPlaceholder: "至少 8 位",
+    hubInvitationCode: "邀请码（可选）",
+    hubLogin: "登录",
+    hubRegister: "注册",
+    hubLogout: "退出登录",
+    hubBaseUrl: "Hub 地址",
+    hubSaveBaseUrl: "保存地址",
+    hubLoginSuccess: "登录成功",
+    hubRegisterSuccess: "注册成功",
+    hubAuthFailed: (msg: string) => `操作失败：${msg}`,
+    hubPermissionDenied: "未获得该 Hub 地址的访问权限",
+    hubNeedLogin: "请先在「设置」中登录 Axiom Hub",
+    hubPrivacyNote: "分享时会将当前页面的批注、标题与网址发送到 Axiom Hub，仅在点击分享后发送。",
+    hubSharePage: "分享本页批注",
+    hubShareSingle: "分享此批注",
+    hubShareDialogTitle: "分享到 Axiom Hub",
+    hubShareVisibility: "可见范围",
+    hubVisPublic: "公开",
+    hubVisLink: "持链接可见",
+    hubVisFollowers: "关注者",
+    hubShareDescription: "描述（可选）",
+    hubShareSubmit: "分享",
+    hubSharing: "分享中…",
+    hubShareSuccess: "分享成功",
+    hubShareFailed: (msg: string) => `分享失败：${msg}`,
+    hubShareEmpty: "没有可分享的批注",
+    hubOpenShare: "打开分享",
+    hubCopyShareLink: "复制链接",
+    hubClose: "关闭"
   },
   en: {
     // SelectionToolbar
@@ -487,7 +525,45 @@ const translations = {
     exportTags: "Tags",
     exportReplies: "Replies",
     // background/index.ts – context menu on links
-    contextMenuCopyLinkName: "Copy Link Name"
+    contextMenuCopyLinkName: "Copy Link Name",
+
+    // Axiom Hub (account / sharing)
+    hubSectionTitle: "Axiom Hub Account",
+    hubAccountHint: "Sign in to share annotations to the Axiom Hub community.",
+    hubNotLoggedIn: "Not signed in",
+    hubLoggedInAs: (name: string) => `Signed in as ${name}`,
+    hubUsername: "Username",
+    hubUsernamePlaceholder: "3–32 chars: letters, digits, _ or -",
+    hubPassword: "Password",
+    hubPasswordPlaceholder: "At least 8 characters",
+    hubInvitationCode: "Invitation code (optional)",
+    hubLogin: "Sign in",
+    hubRegister: "Register",
+    hubLogout: "Sign out",
+    hubBaseUrl: "Hub URL",
+    hubSaveBaseUrl: "Save URL",
+    hubLoginSuccess: "Signed in",
+    hubRegisterSuccess: "Registered",
+    hubAuthFailed: (msg: string) => `Failed: ${msg}`,
+    hubPermissionDenied: "Access to this Hub URL was not granted",
+    hubNeedLogin: "Sign in to Axiom Hub in Settings first",
+    hubPrivacyNote: "Sharing sends this page's annotations, title and URL to Axiom Hub, only after you click share.",
+    hubSharePage: "Share page annotations",
+    hubShareSingle: "Share this annotation",
+    hubShareDialogTitle: "Share to Axiom Hub",
+    hubShareVisibility: "Visibility",
+    hubVisPublic: "Public",
+    hubVisLink: "Anyone with the link",
+    hubVisFollowers: "Followers",
+    hubShareDescription: "Description (optional)",
+    hubShareSubmit: "Share",
+    hubSharing: "Sharing…",
+    hubShareSuccess: "Shared",
+    hubShareFailed: (msg: string) => `Share failed: ${msg}`,
+    hubShareEmpty: "No annotations to share",
+    hubOpenShare: "Open share",
+    hubCopyShareLink: "Copy link",
+    hubClose: "Close"
   }
 }
 
@@ -715,6 +791,43 @@ export interface TranslationKeys {
   exportReplies: string
   // background/index.ts
   contextMenuCopyLinkName: string
+  // Axiom Hub (account / sharing)
+  hubSectionTitle: string
+  hubAccountHint: string
+  hubNotLoggedIn: string
+  hubLoggedInAs: (name: string) => string
+  hubUsername: string
+  hubUsernamePlaceholder: string
+  hubPassword: string
+  hubPasswordPlaceholder: string
+  hubInvitationCode: string
+  hubLogin: string
+  hubRegister: string
+  hubLogout: string
+  hubBaseUrl: string
+  hubSaveBaseUrl: string
+  hubLoginSuccess: string
+  hubRegisterSuccess: string
+  hubAuthFailed: (msg: string) => string
+  hubPermissionDenied: string
+  hubNeedLogin: string
+  hubPrivacyNote: string
+  hubSharePage: string
+  hubShareSingle: string
+  hubShareDialogTitle: string
+  hubShareVisibility: string
+  hubVisPublic: string
+  hubVisLink: string
+  hubVisFollowers: string
+  hubShareDescription: string
+  hubShareSubmit: string
+  hubSharing: string
+  hubShareSuccess: string
+  hubShareFailed: (msg: string) => string
+  hubShareEmpty: string
+  hubOpenShare: string
+  hubCopyShareLink: string
+  hubClose: string
 }
 
 const typedTranslations: Record<Locale, TranslationKeys> = translations

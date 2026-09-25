@@ -7,6 +7,8 @@ import * as storage from "@/services/storage"
 import type { Annotation, Reply } from "@/types"
 import { AnnotationCard } from "@/components/AnnotationCard"
 import { CategoryPanel } from "@/components/CategoryPanel"
+import { HubAccount } from "@/components/HubAccount"
+import { HubShareDialog } from "@/components/HubShareDialog"
 import { MarkdownEditor } from "@/components/MarkdownEditor"
 import { ToolbarSettings } from "@/components/ToolbarSettings"
 
@@ -42,6 +44,7 @@ export default function SidePanel() {
   const [suggestedCategoryId, setSuggestedCategoryId] = useState<string | null>(null)
   const [showTagInput, setShowTagInput] = useState(false)
   const [tagInput, setTagInput] = useState("")
+  const [shareTarget, setShareTarget] = useState<Annotation[] | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const pendingEditIdsRef = useRef<Set<string>>(new Set())
   const annotationsRef = useRef<Annotation[]>([])
@@ -812,6 +815,7 @@ export default function SidePanel() {
 
       {/* Settings tab */}
       <div className={`flex-1 min-h-0 overflow-y-auto ${activeTab === "settings" ? "" : "hidden"}`}>
+        <HubAccount locale={locale} />
         <ToolbarSettings locale={locale} />
       </div>
 
@@ -901,19 +905,28 @@ export default function SidePanel() {
         ref={listRef}
         className={`flex-1 overflow-y-auto min-h-0 px-3 pb-4 ${activeTab === "notes" ? "" : "hidden"}`}
       >
-        <div className="sticky top-0 z-10 bg-slate-50/90 backdrop-blur-sm border-b border-slate-200/70 px-1 py-2 flex items-center justify-between">
-          <span className="text-[10px] text-gray-400">
+        <div className="sticky top-0 z-10 bg-slate-50/90 backdrop-blur-sm border-b border-slate-200/70 px-1 py-2 flex items-center justify-between gap-2">
+          <span className="text-[10px] text-gray-400 truncate">
             {searchQuery.trim()
               ? L.searchResults(displayAnnotations.filter((a) => matchesSearch(a, searchQuery)).length)
               : customOrder ? L.customSort : L.positionSort}
           </span>
-          {customOrder && !searchQuery.trim() && (
+          <div className="flex items-center gap-2 shrink-0">
+            {customOrder && !searchQuery.trim() && (
+              <button
+                onClick={handleResetOrder}
+                className="text-[10px] text-blue-600 hover:text-blue-800 hover:underline">
+                {L.resetToPositionSort}
+              </button>
+            )}
             <button
-              onClick={handleResetOrder}
-              className="text-[10px] text-blue-600 hover:text-blue-800 hover:underline">
-              {L.resetToPositionSort}
+              onClick={() => setShareTarget(annotations)}
+              disabled={annotations.length === 0}
+              title={L.hubSharePage}
+              className="text-[10px] text-slate-500 hover:text-blue-600 px-1.5 py-0.5 rounded border border-slate-200 hover:border-blue-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              {L.hubSharePage}
             </button>
-          )}
+          </div>
         </div>
         <div className="p-1 pt-3 space-y-3">
         {displayAnnotations.filter((a) => matchesSearch(a, searchQuery)).length === 0 && (
@@ -950,6 +963,7 @@ export default function SidePanel() {
             onDragLeave={handleDragLeave}
             onDrop={(e) => handleDrop(e, ann.id)}
             onDragEnd={handleDragEnd}
+            onShare={(target) => setShareTarget([target])}
           />
         ))}
         </div>
@@ -1046,6 +1060,16 @@ export default function SidePanel() {
           </div>
         </div>
       </div>
+
+      {shareTarget && (
+        <HubShareDialog
+          url={url}
+          pageTitle={title}
+          annotations={shareTarget}
+          locale={locale}
+          onClose={() => setShareTarget(null)}
+        />
+      )}
     </div>
   )
 }
