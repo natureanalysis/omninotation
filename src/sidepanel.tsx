@@ -707,39 +707,12 @@ export default function SidePanel() {
         ))}
       </div>
 
-      {/* Quick actions bar: color + add tag (collapsed) — annotations tab */}
+      {/* Quick actions bar: add tag (collapsed) — annotations tab */}
       <div
-        className={`px-4 py-2 border-b border-slate-200/80 shrink-0 justify-between bg-white/70 ${
+        className={`px-4 py-2 border-b border-slate-200/80 shrink-0 bg-white/70 ${
           activeTab === "notes" ? "flex items-center" : "hidden"
         }`}
       >
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-medium text-slate-400">{L.color}</span>
-          {[
-            { key: "yellow", color: "bg-yellow-400" },
-            { key: "blue", color: "bg-blue-400" },
-            { key: "green", color: "bg-green-400" },
-            { key: "red", color: "bg-red-400" },
-            { key: "purple", color: "bg-purple-400" },
-            { key: "orange", color: "bg-orange-400" }
-          ].map(({ key, color }) => (
-            <button
-              key={key}
-              onClick={() => handleColorChange(key)}
-              className={`w-4 h-4 rounded-full ${color} border-2 transition ${
-                highlightColor.includes(key === "yellow" ? "250, 204, 21" :
-                  key === "blue" ? "59, 130, 246" :
-                  key === "green" ? "34, 197, 94" :
-                  key === "red" ? "239, 68, 68" :
-                  key === "purple" ? "168, 85, 247" :
-                  "249, 115, 22")
-                  ? "border-gray-700"
-                  : "border-transparent"
-              } hover:scale-110 transition-transform`}
-              title={key}
-            />
-          ))}
-        </div>
         {!showTagInput && bookmarkTags.length === 0 && (
           <button
             onClick={() => setShowTagInput(true)}

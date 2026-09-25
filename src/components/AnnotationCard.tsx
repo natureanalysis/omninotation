@@ -190,11 +190,16 @@ export function AnnotationCard({
                       className={`w-4 h-4 rounded-full ${cls} border-2 ${ann.data.color === c ? "border-gray-800" : "border-transparent hover:border-gray-400"}`}
                     />
                   ))}
-                  <label className="relative w-4 h-4 rounded-full border-2 border-gray-300 hover:border-gray-500 cursor-pointer flex items-center justify-center overflow-hidden" title={L.customColor}>
+                  <label
+                    className="relative w-4 h-4 rounded-full border-2 border-gray-300 hover:border-gray-500 cursor-pointer flex items-center justify-center overflow-hidden"
+                    title={L.customColor}
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <input
                       type="color"
                       className="absolute inset-0 opacity-0 cursor-pointer"
-                      onChange={(e) => { onColorChange(ann.id, hexToRgba(e.target.value)); setShowColorPicker(false) }}
+                      onInput={(e) => onColorChange(ann.id, hexToRgba((e.target as HTMLInputElement).value))}
+                      onBlur={() => setShowColorPicker(false)}
                     />
                     <span className="text-[8px] text-gray-500">+</span>
                   </label>
