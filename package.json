@@ -8,6 +8,7 @@
     "dev": "plasmo dev",
     "build": "plasmo build",
     "package": "plasmo package",
+    "test": "node --test tests/hub.test.ts",
     "download-icons": "node scripts/download-engine-icons.mjs"
   },
   "dependencies": {

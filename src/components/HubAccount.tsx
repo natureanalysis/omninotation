@@ -23,6 +23,7 @@ export function HubAccount({ locale: localeProp }: { locale?: Locale }) {
   const [invitation, setInvitation] = useState("")
   const [busy, setBusy] = useState(false)
   const [feedback, setFeedback] = useState<Feedback>(null)
+  const [history, setHistory] = useState<hub.HubShareRecord[]>([])
 
   useEffect(() => {
     let alive = true
@@ -39,6 +40,23 @@ export function HubAccount({ locale: localeProp }: { locale?: Locale }) {
     })()
     return () => {
       alive = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let alive = true
+    const load = async () => {
+      const list = await hub.getShareHistory()
+      if (alive) setHistory(list)
+    }
+    void load()
+    const listener = (changes: { [key: string]: chrome.storage.StorageChange }, area: string) => {
+      if (area === "local" && changes.hub_share_history) void load()
+    }
+    chrome.storage.onChanged.addListener(listener)
+    return () => {
+      alive = false
+      chrome.storage.onChanged.removeListener(listener)
     }
   }, [])
 
@@ -96,6 +114,27 @@ export function HubAccount({ locale: localeProp }: { locale?: Locale }) {
     }
     await hub.setHubBaseUrl(baseUrl)
     setFeedback({ kind: "ok", text: L.hubSaveBaseUrl })
+  }
+
+  const handleOpenShare = (record: hub.HubShareRecord) => {
+    chrome.tabs.create({ url: record.link }).catch(() => {})
+  }
+
+  const handleDeleteShare = async (record: hub.HubShareRecord) => {
+    if (busy) return
+    if (!window.confirm(L.hubDeleteShareConfirm)) return
+    setBusy(true)
+    try {
+      // 服务端可能已不存在（404），本地记录仍要清掉
+      await hub.hubDeleteShare(record.shareId)
+    } catch {
+      // 忽略远端错误，保留本地清理
+    } finally {
+      await hub.removeShareRecord(record.shareId)
+      setHistory((prev) => prev.filter((r) => r.shareId !== record.shareId))
+      setFeedback({ kind: "ok", text: L.hubShareDeleted })
+      setBusy(false)
+    }
   }
 
   const inputCls =
@@ -196,13 +235,57 @@ export function HubAccount({ locale: localeProp }: { locale?: Locale }) {
         </div>
       </div>
 
+      <div className="space-y-1 pt-1 border-t border-slate-100">
+        <span className="text-[10px] text-slate-400">{L.hubMyShares}</span>
+        {history.length === 0 ? (
+          <p className="text-[10px] text-slate-300">{L.hubNoShares}</p>
+        ) : (
+          <ul className="space-y-1">
+            {history.map((record) => (
+              <li
+                key={record.shareId}
+                className="flex items-center gap-1 rounded-md border border-slate-100 bg-slate-50/60 px-2 py-1">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] text-slate-600 truncate" title={record.title}>
+                    {record.title}
+                  </p>
+                  <p className="text-[9px] text-slate-400">
+                    {record.visibility} · {new Date(record.createdAt).toLocaleDateString()}
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleOpenShare(record)}
+                  title={L.hubOpenShare}
+                  className="shrink-0 text-[10px] text-slate-400 hover:text-blue-600 px-1">
+                  ↗
+                </button>
+                <button
+                  onClick={() => handleDeleteShare(record)}
+                  disabled={busy}
+                  title={L.hubDeleteShare}
+                  className="shrink-0 text-[10px] text-slate-400 hover:text-red-500 px-1 disabled:opacity-40">
+                  🗑
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
       {feedback && (
         <p
           className={`text-[10px] leading-snug ${feedback.kind === "ok" ? "text-green-600" : "text-red-500"}`}>
           {feedback.text}
         </p>
       )}
-      <p className="text-[9px] text-slate-400 leading-snug">{L.hubPrivacyNote}</p>
+      <div className="flex items-start gap-2">
+        <p className="text-[9px] text-slate-400 leading-snug flex-1">{L.hubPrivacyNote}</p>
+        <button
+          onClick={() => chrome.tabs.create({ url: hub.PRIVACY_POLICY_URL }).catch(() => {})}
+          className="shrink-0 text-[9px] text-blue-500 hover:text-blue-700 hover:underline">
+          {L.hubPrivacyPolicy}
+        </button>
+      </div>
     </div>
   )
 }

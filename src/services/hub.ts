@@ -15,10 +15,14 @@
  *   - 数据外发由用户主动点击「分享」触发，符合 axiom-hub「显式授权」红线。
  */
 
-import type { Annotation } from "@/types"
+import type { Annotation, Reply } from "@/types"
 
 /** 生产 Hub 站点根（nginx 子路径反代，API 前缀随之）。 */
 export const DEFAULT_HUB_BASE_URL = "https://researchranked.eu.org/Axiom-hub"
+
+/** 公开隐私政策地址（Chrome 商店「隐私规范」页需填写同一 URL）。 */
+export const PRIVACY_POLICY_URL =
+  "https://github.com/natureanalysis/omninotation/blob/main/PRIVACY.md"
 
 const HUB_BASE_KEY = "hub_base_url"
 const HUB_ACCESS_KEY = "hub_access_token"
@@ -45,6 +49,20 @@ export interface HubAuthResponse {
 
 export type HubVisibility = "public" | "link" | "followers" | "direct"
 
+/** 解析用户输入的收件人（逗号/分号/换行分隔），去空去重。 */
+export function parseRecipients(raw: string): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const part of raw.split(/[\n,，;；]/)) {
+    const name = part.trim()
+    if (name && !seen.has(name)) {
+      seen.add(name)
+      out.push(name)
+    }
+  }
+  return out
+}
+
 export interface HubShareInput {
   title: string
   description?: string
@@ -55,10 +73,22 @@ export interface HubShareInput {
   itemSnapshot: Record<string, unknown>
   /** 定向分享（visibility=direct）的收件人，用户名或 user_id。 */
   recipients?: string[]
+  /** 是否同时附带一份由批注生成的 Markdown 文件（作为 `files[]` 上传）。 */
+  attachMarkdown?: boolean
 }
 
 export interface HubShareResult {
   share_id: string
+}
+
+/** 本地保存的一条分享记录（用于「我的分享」列表与删除）。 */
+export interface HubShareRecord {
+  shareId: string
+  title: string
+  url: string
+  visibility: HubVisibility
+  createdAt: string
+  link: string
 }
 
 export interface HubSession {
@@ -338,6 +368,76 @@ export async function hubMe(): Promise<HubUser | null> {
 // 分享
 // ========================
 
+function renderRepliesMd(replies: Reply[], depth: number): string[] {
+  const out: string[] = []
+  const indent = "  ".repeat(depth)
+  for (const r of replies) {
+    out.push(`${indent}- ${r.author?.name || "Anonymous"}: ${r.content}`)
+    if (r.replies?.length) out.push(...renderRepliesMd(r.replies, depth + 1))
+  }
+  return out
+}
+
+/**
+ * 把一批批注渲染为独立 Markdown 文本（分享时可作为附件上传）。
+ * 刻意不依赖 UI/i18n，保证纯函数、可单测。
+ */
+export function buildShareMarkdown(input: {
+  title: string
+  url: string
+  annotations: Annotation[]
+}): string {
+  const lines: string[] = []
+  lines.push(`# ${input.title}`)
+  lines.push("")
+  if (input.url) lines.push(`- URL: ${input.url}`)
+  lines.push(`- Exported: ${new Date().toISOString()}`)
+  lines.push(`- Annotations: ${input.annotations.length}`)
+  lines.push("")
+  lines.push("---")
+  lines.push("")
+
+  for (const ann of input.annotations) {
+    const kind = ann.data.type === "edit" ? "Edit" : "Comment"
+    const style = ann.data.markStyle ? ` (${ann.data.markStyle})` : ""
+    const resolved = ann.status === "resolved" ? " [resolved]" : ""
+    lines.push(`## ${kind}${style}${resolved}`)
+    lines.push("")
+    if (ann.quote) {
+      lines.push(ann.quote.split("\n").map((line) => `> ${line}`).join("\n"))
+      lines.push("")
+    }
+    if (ann.data.content) {
+      lines.push(ann.data.content)
+      lines.push("")
+    }
+    if (ann.author?.name) {
+      lines.push(`— ${ann.author.name}, ${ann.createdAt}`)
+      lines.push("")
+    }
+    if (ann.replies?.length) {
+      lines.push("Replies:")
+      lines.push("")
+      lines.push(...renderRepliesMd(ann.replies, 0))
+      lines.push("")
+    }
+    lines.push("---")
+    lines.push("")
+  }
+
+  return lines.join("\n")
+}
+
+/** 由标题派生一个安全的 `.md` 附件名（服务端白名单含 md）。 */
+export function shareMarkdownFileName(title: string): string {
+  const base = (title || "omninotation")
+    .replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 60)
+  return `${base || "omninotation"}-annotations.md`
+}
+
 export async function hubCreateShare(input: HubShareInput): Promise<HubShareResult> {
   const title = input.title.trim().slice(0, 200) || "OmniNotation"
   const fd = new FormData()
@@ -349,6 +449,12 @@ export async function hubCreateShare(input: HubShareInput): Promise<HubShareResu
   for (const r of input.recipients ?? []) {
     if (r.trim()) fd.append("recipients", r.trim())
   }
+  if (input.attachMarkdown && input.annotations.length > 0) {
+    const pageUrl = typeof input.itemSnapshot.url === "string" ? input.itemSnapshot.url : ""
+    const markdown = buildShareMarkdown({ title, url: pageUrl, annotations: input.annotations })
+    const fileName = shareMarkdownFileName(title)
+    fd.append("files", new File([markdown], fileName, { type: "text/markdown" }), fileName)
+  }
   // 不显式设置 Content-Type，交给浏览器补 multipart boundary
   const res = await authFetch("/api/shares", { method: "POST", body: fd })
   if (!res.ok) throw new HubApiError(res.status, await readErrorMessage(res))
@@ -359,4 +465,36 @@ export async function hubCreateShare(input: HubShareInput): Promise<HubShareResu
 export async function hubShareUrl(shareId: string): Promise<string> {
   const base = await getHubBaseUrl()
   return `${base}/#/share/${shareId}`
+}
+/** 删除一个分享（仅属主可删，服务端会回收配额并清理 blob）。 */
+export async function hubDeleteShare(shareId: string): Promise<void> {
+  const res = await authFetch(`/api/shares/${encodeURIComponent(shareId)}`, { method: "DELETE" })
+  if (!res.ok) throw new HubApiError(res.status, await readErrorMessage(res))
+}
+
+// ========================
+// 分享历史（本地记录，离线可用）
+// ========================
+
+const HUB_SHARE_HISTORY_KEY = "hub_share_history"
+const MAX_SHARE_HISTORY = 100
+
+export async function getShareHistory(): Promise<HubShareRecord[]> {
+  const result = await storageGet(HUB_SHARE_HISTORY_KEY)
+  const list = result[HUB_SHARE_HISTORY_KEY] as HubShareRecord[] | undefined
+  return Array.isArray(list) ? list : []
+}
+
+export async function addShareRecord(record: HubShareRecord): Promise<void> {
+  const list = await getShareHistory()
+  const next = [record, ...list.filter((r) => r.shareId !== record.shareId)].slice(
+    0,
+    MAX_SHARE_HISTORY
+  )
+  await storageSet({ [HUB_SHARE_HISTORY_KEY]: next })
+}
+
+export async function removeShareRecord(shareId: string): Promise<void> {
+  const list = await getShareHistory()
+  await storageSet({ [HUB_SHARE_HISTORY_KEY]: list.filter((r) => r.shareId !== shareId) })
 }

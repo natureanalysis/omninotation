@@ -283,7 +283,20 @@ const translations = {
     hubShareEmpty: "没有可分享的批注",
     hubOpenShare: "打开分享",
     hubCopyShareLink: "复制链接",
-    hubClose: "关闭"
+    hubClose: "关闭",
+
+    // Axiom Hub（隐私入口 / 分享增强）
+    hubPrivacyPolicy: "隐私政策",
+    hubVisDirect: "定向",
+    hubShareRecipients: "收件人",
+    hubShareRecipientsPlaceholder: "用户名，用逗号或换行分隔",
+    hubShareRecipientsRequired: "请至少填写一个收件人",
+    hubShareAttachMarkdown: "同时附带 Markdown 文件",
+    hubMyShares: "我的分享",
+    hubNoShares: "暂无分享记录",
+    hubDeleteShare: "删除",
+    hubDeleteShareConfirm: "删除后该分享将从 Hub 移除，确定继续？",
+    hubShareDeleted: "已删除"
   },
   en: {
     // SelectionToolbar
@@ -563,7 +576,20 @@ const translations = {
     hubShareEmpty: "No annotations to share",
     hubOpenShare: "Open share",
     hubCopyShareLink: "Copy link",
-    hubClose: "Close"
+    hubClose: "Close",
+
+    // Axiom Hub (privacy entry / share enhancements)
+    hubPrivacyPolicy: "Privacy policy",
+    hubVisDirect: "Direct",
+    hubShareRecipients: "Recipients",
+    hubShareRecipientsPlaceholder: "Usernames, separated by comma or newline",
+    hubShareRecipientsRequired: "Enter at least one recipient",
+    hubShareAttachMarkdown: "Also attach a Markdown file",
+    hubMyShares: "My shares",
+    hubNoShares: "No shares yet",
+    hubDeleteShare: "Delete",
+    hubDeleteShareConfirm: "This will remove the share from the Hub. Continue?",
+    hubShareDeleted: "Deleted"
   }
 }
 
@@ -828,6 +854,17 @@ export interface TranslationKeys {
   hubOpenShare: string
   hubCopyShareLink: string
   hubClose: string
+  hubPrivacyPolicy: string
+  hubVisDirect: string
+  hubShareRecipients: string
+  hubShareRecipientsPlaceholder: string
+  hubShareRecipientsRequired: string
+  hubShareAttachMarkdown: string
+  hubMyShares: string
+  hubNoShares: string
+  hubDeleteShare: string
+  hubDeleteShareConfirm: string
+  hubShareDeleted: string
 }
 
 const typedTranslations: Record<Locale, TranslationKeys> = translations

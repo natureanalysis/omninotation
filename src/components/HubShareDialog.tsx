@@ -6,11 +6,12 @@ import type { Annotation } from "@/types"
 
 type Feedback = { kind: "ok" | "err"; text: string } | null
 
+
 /**
  * 分享对话框：把一批批注（整页或单条）作为一次 share 上传到 Axiom Hub。
  *
  * 上传字段对齐 `POST /api/shares`（multipart）：title / description / visibility /
- * item_snapshot / annotations。不含附件，故不涉及 files / file_meta。
+ * item_snapshot / annotations / recipients（定向）/ files[]（可选 Markdown 附件）。
  */
 export function HubShareDialog({
   url,
@@ -32,6 +33,8 @@ export function HubShareDialog({
   const [ready, setReady] = useState(false)
   const [visibility, setVisibility] = useState<hub.HubVisibility>("link")
   const [description, setDescription] = useState("")
+  const [recipients, setRecipients] = useState("")
+  const [attachMarkdown, setAttachMarkdown] = useState(false)
   const [busy, setBusy] = useState(false)
   const [feedback, setFeedback] = useState<Feedback>(null)
   const [shareLink, setShareLink] = useState<string | null>(null)
@@ -58,6 +61,11 @@ export function HubShareDialog({
       setFeedback({ kind: "err", text: L.hubNeedLogin })
       return
     }
+    const recipientList = hub.parseRecipients(recipients)
+    if (visibility === "direct" && recipientList.length === 0) {
+      setFeedback({ kind: "err", text: L.hubShareRecipientsRequired })
+      return
+    }
     const granted = await hub.ensureHubHostPermission()
     if (!granted) {
       setFeedback({ kind: "err", text: L.hubPermissionDenied })
@@ -71,6 +79,8 @@ export function HubShareDialog({
         description,
         visibility,
         annotations,
+        recipients: visibility === "direct" ? recipientList : undefined,
+        attachMarkdown,
         itemSnapshot: {
           url,
           title: defaultTitle,
@@ -80,6 +90,14 @@ export function HubShareDialog({
         }
       })
       const link = await hub.hubShareUrl(share_id)
+      await hub.addShareRecord({
+        shareId: share_id,
+        title: defaultTitle,
+        url,
+        visibility,
+        createdAt: new Date().toISOString(),
+        link
+      })
       setShareLink(link)
       setFeedback({ kind: "ok", text: L.hubShareSuccess })
     } catch (e) {
@@ -102,7 +120,8 @@ export function HubShareDialog({
   const visibilities: { key: hub.HubVisibility; label: string }[] = [
     { key: "public", label: L.hubVisPublic },
     { key: "link", label: L.hubVisLink },
-    { key: "followers", label: L.hubVisFollowers }
+    { key: "followers", label: L.hubVisFollowers },
+    { key: "direct", label: L.hubVisDirect }
   ]
 
   return (
@@ -110,7 +129,7 @@ export function HubShareDialog({
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4"
       onClick={onClose}>
       <div
-        className="w-full max-w-sm rounded-xl bg-white shadow-xl border border-slate-200 p-4 space-y-3"
+        className="w-full max-w-sm max-h-[90vh] overflow-y-auto rounded-xl bg-white shadow-xl border border-slate-200 p-4 space-y-3"
         onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-slate-800">{L.hubShareDialogTitle}</h3>
@@ -159,12 +178,12 @@ export function HubShareDialog({
           <>
             <div className="space-y-1">
               <label className="text-[10px] text-slate-400">{L.hubShareVisibility}</label>
-              <div className="flex gap-1">
+              <div className="grid grid-cols-2 gap-1">
                 {visibilities.map(({ key, label }) => (
                   <button
                     key={key}
                     onClick={() => setVisibility(key)}
-                    className={`flex-1 py-1 text-[10px] rounded-md border transition-colors ${
+                    className={`py-1 text-[10px] rounded-md border transition-colors ${
                       visibility === key
                         ? "border-blue-200 bg-blue-50 text-blue-700 font-medium"
                         : "border-slate-200 text-slate-500 hover:bg-slate-50"
@@ -175,6 +194,19 @@ export function HubShareDialog({
               </div>
             </div>
 
+            {visibility === "direct" && (
+              <div className="space-y-1">
+                <label className="text-[10px] text-slate-400">{L.hubShareRecipients}</label>
+                <textarea
+                  value={recipients}
+                  onChange={(e) => setRecipients(e.target.value)}
+                  placeholder={L.hubShareRecipientsPlaceholder}
+                  rows={2}
+                  className="w-full text-[11px] border border-slate-200 rounded-md px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+            )}
+
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -182,6 +214,16 @@ export function HubShareDialog({
               rows={2}
               className="w-full text-[11px] border border-slate-200 rounded-md px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
+
+            <label className="flex items-center gap-1.5 text-[10px] text-slate-500 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={attachMarkdown}
+                onChange={(e) => setAttachMarkdown(e.target.checked)}
+                className="accent-blue-600"
+              />
+              {L.hubShareAttachMarkdown}
+            </label>
 
             {isEmpty && <p className="text-[10px] text-slate-400">{L.hubShareEmpty}</p>}
 
