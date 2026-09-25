@@ -93,10 +93,27 @@ export function MarkdownEditor({
   textareaClassName
 }: MarkdownEditorProps) {
   const ref = useRef<HTMLTextAreaElement>(null)
+  const previewRef = useRef<HTMLDivElement>(null)
+  const syncingRef = useRef(false)
   const L = t(locale ?? detectLocale())
   const [editorHeight, setEditorHeight] = useState(() => loadEditorHeight(rows))
   const [showPreview, setShowPreview] = useState(loadPreviewEnabled)
   const dragRef = useRef<{ startY: number; startHeight: number } | null>(null)
+
+  const syncScroll = useCallback((source: HTMLElement | null, target: HTMLElement | null) => {
+    if (!source || !target || syncingRef.current) return
+    const sourceMax = source.scrollHeight - source.clientHeight
+    const targetMax = target.scrollHeight - target.clientHeight
+    if (sourceMax <= 0 || targetMax <= 0) return
+    syncingRef.current = true
+    target.scrollTop = (source.scrollTop / sourceMax) * targetMax
+    requestAnimationFrame(() => {
+      syncingRef.current = false
+    })
+  }, [])
+
+  const handleEditorScroll = () => syncScroll(ref.current, previewRef.current)
+  const handlePreviewScroll = () => syncScroll(previewRef.current, ref.current)
 
   const handleDragStart = (e: ReactPointerEvent<HTMLDivElement>) => {
     e.preventDefault()
@@ -294,6 +311,7 @@ export function MarkdownEditor({
           ref={ref}
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          onScroll={handleEditorScroll}
           placeholder={placeholder}
           rows={rows}
           autoFocus={autoFocus}
@@ -303,7 +321,7 @@ export function MarkdownEditor({
           }
         />
         {showPreview && (
-          <div className="markdown-editor-preview">
+          <div className="markdown-editor-preview" ref={previewRef} onScroll={handlePreviewScroll}>
             {value.trim() ? (
               <MarkdownContent text={value} />
             ) : (
