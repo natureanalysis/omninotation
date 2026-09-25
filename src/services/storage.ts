@@ -1,12 +1,59 @@
 import { getLocalIconUrl } from "@/services/color"
+import { getLocale, t } from "@/services/i18n"
 import type { Annotation, AnnotationEntry, Bookmark, BookmarkFolder, Group, PageCategory, UserProfile, Reply, Visibility, ToolbarConfig, ToolbarSearchEngine, ToolbarStyle, AnnotationType, MarkStyle } from "@/types"
 
 import defaultEnginesJson from "./engines.json"
 
 const ANNOTATION_KEY_PREFIX = "annotations:"
 
+export function normalizePageUrl(url: string): string {
+  if (!url) return ""
+  const value = url.trim()
+
+  try {
+    const u = new URL(value)
+    if (u.protocol !== "http:" && u.protocol !== "https:") {
+      return value.split("#")[0]
+    }
+
+    u.hash = ""
+    u.hostname = u.hostname.toLowerCase()
+    let normalized = u.toString()
+    if (!u.search && normalized.endsWith("/")) normalized = normalized.slice(0, -1)
+    return normalized
+  } catch {
+    return value.split("#")[0]
+  }
+}
+
+export function samePageUrl(a: string, b: string): boolean {
+  return normalizePageUrl(a) === normalizePageUrl(b)
+}
+
 export function getKey(url: string): string {
-  return ANNOTATION_KEY_PREFIX + url
+  return ANNOTATION_KEY_PREFIX + normalizePageUrl(url)
+}
+
+const PENDING_EDIT_KEY = "pending_edit_annotation"
+
+interface PendingEditMarker {
+  url: string
+  id: string
+}
+
+/** 记录「页面选区新建批注后应在侧边栏进入编辑态」的标记（由内容脚本写入，侧边栏消费）。 */
+export async function setPendingEditAnnotation(url: string, id: string): Promise<void> {
+  await safeSet({ [PENDING_EDIT_KEY]: { url: normalizePageUrl(url), id } as PendingEditMarker })
+}
+
+/** 读取并清除待编辑标记；仅当标记所属页面与当前页面一致时返回批注 id。 */
+export async function consumePendingEditAnnotation(url: string): Promise<string | null> {
+  const data = await safeGet(PENDING_EDIT_KEY)
+  const marker = data[PENDING_EDIT_KEY] as PendingEditMarker | undefined
+  if (!marker) return null
+  await safeRemove(PENDING_EDIT_KEY)
+  if (!url || marker.url !== normalizePageUrl(url)) return null
+  return marker.id
 }
 
 function safeGet(keys: string | string[]): Promise<Record<string, any>> {
@@ -619,7 +666,7 @@ function fromBase64(str: string): string {
 function formatExportDate(dateStr: string): string {
   const d = new Date(dateStr)
   try {
-    return d.toLocaleString("zh-CN", {
+    return d.toLocaleString(getLocale() === "zh-CN" ? "zh-CN" : "en-US", {
       year: "numeric", month: "2-digit", day: "2-digit",
       hour: "2-digit", minute: "2-digit"
     })
@@ -639,20 +686,22 @@ function getStyleEmoji(style?: string): string {
 }
 
 function getStyleLabel(style?: string): string {
+  const L = t(getLocale())
   const map: Record<string, string> = {
-    highlight: "高亮",
-    underline: "下划线",
-    strikethrough: "删除线",
-    squiggly: "波浪线"
+    highlight: L.highlight,
+    underline: L.underline,
+    strikethrough: L.strikethrough,
+    squiggly: L.squiggly
   }
-  return map[style || "highlight"] || (style || "Highlight")
+  return map[style || "highlight"] || (style || L.highlight)
 }
 
 function renderRepliesMd(replies: Reply[], depth = 0): string[] {
+  const L = t(getLocale())
   const lines: string[] = []
   const indent = "  ".repeat(depth)
   for (const r of replies) {
-    const author = r.author?.name || "Anonymous"
+    const author = r.author?.name || L.anonymous
     const date = formatExportDate(r.createdAt)
     lines.push(`${indent}- **${author}** (${date}): ${r.content}`)
     if (r.replies?.length) {
@@ -667,10 +716,11 @@ function annotationsToMarkdown(
   bookmarks: Bookmark[],
   title: string
 ): string {
+  const L = t(getLocale())
   const lines: string[] = []
   lines.push(`# ${title}`)
   lines.push("")
-  lines.push(`> ${new Date().toLocaleString("zh-CN")}`)
+  lines.push(`> ${new Date().toLocaleString(getLocale() === "zh-CN" ? "zh-CN" : "en-US")}`)
   lines.push("")
   lines.push("---")
   lines.push("")
@@ -679,17 +729,17 @@ function annotationsToMarkdown(
     const bm = bookmarks.find((b) => b.url === entry.url)
     const pageTitle = bm?.title || entry.url
 
-    lines.push(`## Page: ${pageTitle}`)
+    lines.push(`## ${L.exportPageHeader}: ${pageTitle}`)
     lines.push(`- **URL:** ${entry.url}`)
     if (bm?.tags?.length) {
-      lines.push(`- **Tags:** ${bm.tags.join(", ")}`)
+      lines.push(`- **${L.exportTags}:** ${bm.tags.join(", ")}`)
     }
     lines.push("")
 
     for (const ann of entry.annotations) {
       const emoji = getStyleEmoji(ann.data.markStyle)
       const styleName = getStyleLabel(ann.data.markStyle)
-      const resolved = ann.status === "resolved" ? " · [已解决]" : ""
+      const resolved = ann.status === "resolved" ? ` · [${L.resolved}]` : ""
       const date = formatExportDate(ann.createdAt)
 
       lines.push(`### ${emoji} ${styleName} · ${date}${resolved}`)
@@ -704,7 +754,7 @@ function annotationsToMarkdown(
         lines.push("")
       }
       if (ann.replies?.length) {
-        lines.push("**Replies:**")
+        lines.push(`**${L.exportReplies}:**`)
         lines.push("")
         lines.push(...renderRepliesMd(ann.replies))
         lines.push("")

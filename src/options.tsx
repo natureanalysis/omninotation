@@ -1,11 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import "katex/dist/katex.min.css"
 import "./style.css"
 
-import { detectLocale, t, type Locale } from "@/services/i18n"
+import { detectLocale, initLocale, setLocale, t, type Locale } from "@/services/i18n"
 import * as storage from "@/services/storage"
 import type { Annotation, AnnotationEntry, Bookmark, BookmarkFolder } from "@/types"
+import type { PageCategory } from "@/types/category"
+import { CategoryIconSwatch } from "@/components/CategoryIconSwatch"
 import { MarkdownContent } from "@/components/MarkdownContent"
+import { ASSIGN_NONE, assignCategory, getAssignments, getCategories, pageKey } from "@/services/categories"
 
 // ===== Helpers =====
 
@@ -116,15 +119,35 @@ function FolderTreeItem({
 }
 
 export default function OptionsPage() {
-  const locale = useRef<Locale>(detectLocale()).current
+  // Stateful locale: initialized from the persisted preference and kept in
+  // sync via storage changes, so the dashboard follows language switches
+  // made in the side panel (and vice versa via the header toggle below).
+  const [locale, setLocaleState] = useState<Locale>(detectLocale)
   const L = t(locale)
+  useEffect(() => {
+    initLocale().then(setLocaleState).catch(() => {})
+    const onLocaleChange = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+      if (area !== "local" || !changes["locale_pref"]) return
+      const next = changes["locale_pref"].newValue
+      if (next === "zh-CN" || next === "en") {
+        // Refresh the shared cache too, so data loaders that resolve the locale
+        // internally localize built-in category names to the new language.
+        initLocale().then((l) => setLocaleState(l)).catch(() => setLocaleState(next))
+      }
+    }
+    chrome.storage.onChanged.addListener(onLocaleChange)
+    return () => chrome.storage.onChanged.removeListener(onLocaleChange)
+  }, [])
   const [entries, setEntries] = useState<AnnotationEntry[]>([])
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([])
   const [folders, setFolders] = useState<BookmarkFolder[]>([])
+  const [categories, setCategories] = useState<PageCategory[]>([])
+  const [categoryAssignments, setCategoryAssignments] = useState<Record<string, string>>({})
   const [selectedFolderId, setSelectedFolderId] = useState<string | undefined>(undefined)
   const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(new Set())
   const [query, setQuery] = useState("")
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   // Expanded URL cards
@@ -137,25 +160,80 @@ export default function OptionsPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const [all, bms, fdrs] = await Promise.all([
+    const [all, bms, fdrs, cats, assignments] = await Promise.all([
       storage.getAllAnnotations(),
       storage.getBookmarks(),
-      storage.getBookmarkFolders()
+      storage.getBookmarkFolders(),
+      getCategories(locale),
+      getAssignments()
     ])
     setEntries(all)
     setBookmarks(bms)
     setFolders(fdrs)
+    setCategories(cats)
+    setCategoryAssignments(assignments)
     setLoading(false)
-  }, [])
+  }, [locale])
 
   useEffect(() => {
     load()
+  }, [load])
+
+  // Keep the dashboard in sync when bookmarks, folders, categories, or
+  // category assignments are changed from the side panel or another page.
+  useEffect(() => {
+    const listener = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+      if (area !== "local") return
+      const annotationsTouched = Object.keys(changes).some((key) => key.startsWith("annotations:"))
+      if (
+        changes.bookmarks ||
+        changes.bookmark_folders ||
+        changes.page_categories ||
+        changes.page_category_assignments ||
+        annotationsTouched
+      ) {
+        void load()
+      }
+    }
+    chrome.storage.onChanged.addListener(listener)
+    return () => chrome.storage.onChanged.removeListener(listener)
   }, [load])
 
   const highlightTerms = useMemo(() => {
     const filters = storage.parseSearchQuery(query)
     return filters.text ? filters.text.split(/\s+/).filter(Boolean) : []
   }, [query])
+
+  const effectiveCategoryByUrl = useMemo(() => {
+    const annotationsByUrl = new Map(entries.map((entry) => [pageKey(entry.url), entry]))
+    const byUrl = new Map<string, PageCategory | null>()
+
+    for (const bookmark of bookmarks) {
+      const key = pageKey(bookmark.url)
+      const assigned = categoryAssignments[key]
+      if (assigned === ASSIGN_NONE) {
+        byUrl.set(key, null)
+        continue
+      }
+      if (assigned) {
+        const manual = categories.find((category) => category.id === assigned)
+        if (manual) {
+          byUrl.set(key, manual)
+          continue
+        }
+      }
+
+      const annotations = annotationsByUrl.get(key)?.annotations || []
+      const hasContent = annotations.some((annotation) => annotation.data.content?.trim())
+      const automatic = categories.find((category) => {
+        if (category.autoRule === "has-annotations") return annotations.length > 0
+        if (category.autoRule === "has-comments") return hasContent
+        return false
+      })
+      byUrl.set(key, automatic || null)
+    }
+    return byUrl
+  }, [bookmarks, categories, categoryAssignments, entries])
 
   const filteredEntries = useMemo(() => {
     let result = storage.searchAnnotations(entries, query, bookmarks)
@@ -180,8 +258,16 @@ export default function OptionsPage() {
       )
       result = result.filter((e) => taggedUrls.has(e.url))
     }
+    if (selectedCategoryId) {
+      result = result.filter((entry) => {
+        const category = effectiveCategoryByUrl.get(pageKey(entry.url))
+        return selectedCategoryId === ASSIGN_NONE
+          ? !category
+          : category?.id === selectedCategoryId
+      })
+    }
     return result
-  }, [entries, bookmarks, folders, query, selectedFolderId, selectedTag])
+  }, [entries, bookmarks, folders, query, selectedFolderId, selectedTag, selectedCategoryId, effectiveCategoryByUrl])
 
   const allTags = useMemo(() => {
     const tags = new Set<string>()
@@ -190,6 +276,15 @@ export default function OptionsPage() {
     }
     return Array.from(tags).sort()
   }, [bookmarks])
+
+  const handleCategoryChange = async (url: string, value: string) => {
+    const key = pageKey(url)
+    if (!key) return
+    // Let the shared category service persist the change, then update the
+    // local snapshot from storage so the result also matches other writers.
+    await assignCategory(url, value || null)
+    setCategoryAssignments(await getAssignments())
+  }
 
   const toggleUrl = (url: string) => {
     setExpandedUrls((prev) => {
@@ -275,24 +370,62 @@ export default function OptionsPage() {
   const rootFolders = buildTree(folders)
 
   return (
-    <div className="min-h-screen bg-gray-50" style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}>
+    <div className="extension-ui min-h-screen bg-slate-50" style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}>
       {/* Header */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-6 py-4">
+        <div className="max-w-6xl mx-auto px-6 py-3">
           <div className="flex items-center justify-between mb-3">
-            <h1 className="text-xl font-bold text-gray-800">{L.bookmarksTitle}</h1>
-            <button
-              onClick={load}
-              className="text-xs text-blue-600 hover:text-blue-800 hover:underline">
-              {L.refresh}
-            </button>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-blue-500 shadow-sm shadow-blue-200" />
+                <h1 className="text-xl font-bold tracking-tight text-slate-800">{L.bookmarksTitle}</h1>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {/* Language toggle (same segmented control as the side panel footer) */}
+              <div className="inline-flex rounded-md border border-gray-200 overflow-hidden" title={L.languageLabel}>
+                <button
+                  onClick={async () => {
+                    if (locale === "zh-CN") return
+                    await setLocale("zh-CN")
+                    setLocaleState("zh-CN")
+                  }}
+                  className={`text-xs px-2 py-1 transition-colors ${
+                    locale === "zh-CN"
+                      ? "bg-blue-600 text-white"
+                      : "bg-white text-gray-500 hover:bg-gray-50"
+                  }`}>
+                  中文
+                </button>
+                <button
+                  onClick={async () => {
+                    if (locale === "en") return
+                    await setLocale("en")
+                    setLocaleState("en")
+                  }}
+                  className={`text-xs px-2 py-1 border-l border-gray-200 transition-colors ${
+                    locale === "en"
+                      ? "bg-blue-600 text-white"
+                      : "bg-white text-gray-500 hover:bg-gray-50"
+                  }`}>
+                  EN
+                </button>
+              </div>
+              <button
+                onClick={load}
+                className="text-xs text-blue-600 hover:text-blue-800 hover:underline">
+                {L.refresh}
+              </button>
+            </div>
           </div>
 
           {/* Stats */}
-          <div className="flex gap-4 text-xs text-gray-500 mb-3">
-            <span>{L.totalBookmarks(bookmarks.length)}</span>
-            <span>{L.totalAnnotations(countTotalAnnotations(entries))}</span>
-            <span>{L.folderCount(folders.length)}</span>
+          <div className="flex flex-wrap gap-2 text-xs text-slate-500 mb-4">
+            {[L.totalBookmarks(bookmarks.length), L.totalAnnotations(countTotalAnnotations(entries)), L.folderCount(folders.length)].map((stat, index) => (
+              <div key={stat} className={`flex-1 min-w-[120px] rounded-xl border border-slate-200/80 bg-slate-50/80 px-3 py-2 ${index === 0 ? "text-blue-700" : index === 1 ? "text-violet-700" : "text-slate-600"}`}>
+                {stat}
+              </div>
+            ))}
           </div>
 
           {/* Search */}
@@ -305,6 +438,44 @@ export default function OptionsPage() {
               className="flex-1 text-sm border border-gray-200 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
+
+          {/* Category filter */}
+          {categories.length > 0 && (
+            <div className="flex items-center flex-wrap gap-1.5 mt-2">
+              <span className="text-[11px] text-gray-400">{L.categoryFilter}</span>
+              <button
+                onClick={() => setSelectedCategoryId(null)}
+                className={`text-[11px] px-2 py-0.5 rounded-full border ${
+                  selectedCategoryId === null
+                    ? "bg-blue-100 border-blue-300 text-blue-700"
+                    : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                }`}>
+                {L.filterAll}
+              </button>
+              {categories.map((category) => (
+                <button
+                  key={category.id}
+                  onClick={() => setSelectedCategoryId(category.id === selectedCategoryId ? null : category.id)}
+                  className={`flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border ${
+                    selectedCategoryId === category.id
+                      ? "border-blue-300 bg-blue-50 text-blue-700"
+                      : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                  }`}>
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: category.color }} />
+                  {category.name || L.catUntitled}
+                </button>
+              ))}
+              <button
+                onClick={() => setSelectedCategoryId(ASSIGN_NONE)}
+                className={`text-[11px] px-2 py-0.5 rounded-full border ${
+                  selectedCategoryId === ASSIGN_NONE
+                    ? "border-blue-300 bg-blue-50 text-blue-700"
+                    : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                }`}>
+                {L.uncategorized}
+              </button>
+            </div>
+          )}
 
           {/* Tag filter */}
           {allTags.length > 0 && (
@@ -428,6 +599,13 @@ export default function OptionsPage() {
             {selectedTag && (
               <span className="ml-2 text-amber-600">{L.tagLabel} {selectedTag}</span>
             )}
+            {selectedCategoryId && (
+              <span className="ml-2 text-blue-600">
+                {L.categoryFilter.replace(/[：:]\s*$/, "")} {selectedCategoryId === ASSIGN_NONE
+                  ? L.uncategorized
+                  : categories.find((category) => category.id === selectedCategoryId)?.name || L.catUntitled}
+              </span>
+            )}
           </div>
 
           {loading && (
@@ -442,6 +620,11 @@ export default function OptionsPage() {
 
           {!loading && filteredEntries.map((entry) => {
             const bm = bookmarks.find((b) => b.url === entry.url)
+            const categoryKey = pageKey(entry.url)
+            const category = effectiveCategoryByUrl.get(categoryKey) || null
+            const assignedId = categoryAssignments[categoryKey]
+            const hasValidAssignment = assignedId === ASSIGN_NONE || categories.some((item) => item.id === assignedId)
+            const categoryValue = hasValidAssignment ? assignedId || "" : ""
             const isExpanded = expandedUrls.has(entry.url)
             return (
               <div key={entry.url} className="mb-3 bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -454,6 +637,21 @@ export default function OptionsPage() {
                       {bm?.title || entry.annotations[0]?.title || decodeUrl(entry.url).replace(/^https?:\/\//, "")}
                     </p>
                     <p className="text-[11px] text-gray-400 truncate">{decodeUrl(entry.url)}</p>
+                    <div className="mt-1 flex items-center gap-1.5">
+                      {category ? (
+                        <span
+                          className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+                          style={{ color: category.color, backgroundColor: `${category.color}14` }}>
+                          <CategoryIconSwatch color={category.color} glyph={category.icon} size={12} />
+                          {category.name || L.catUntitled}
+                          <span className="opacity-70">
+                            {categoryAssignments[pageKey(entry.url)] ? L.categoryManual : L.catAuto}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-gray-400">{L.uncategorized}</span>
+                      )}
+                    </div>
                   </button>
                   <div className="flex items-center gap-3 ml-4 shrink-0">
                     {bm?.tags && bm.tags.length > 0 && (
@@ -470,6 +668,20 @@ export default function OptionsPage() {
                         )}
                       </div>
                     )}
+
+                    {/* Page category */}
+                    <select
+                      value={categoryValue}
+                      onChange={(e) => handleCategoryChange(entry.url, e.target.value)}
+                      className="max-w-[8rem] text-[10px] border rounded px-1 py-0.5 bg-white"
+                      style={category ? { color: category.color, borderColor: `${category.color}55` } : undefined}
+                      title={L.pageCategory}>
+                      <option value="">{L.catAuto}</option>
+                      <option value={ASSIGN_NONE}>{L.catNone}</option>
+                      {categories.map((item) => (
+                        <option key={item.id} value={item.id}>{item.name || L.catUntitled}</option>
+                      ))}
+                    </select>
 
                     {/* Move to folder */}
                     <select
@@ -528,7 +740,7 @@ export default function OptionsPage() {
                               </span>
                             )}
                             <span className="text-[10px] text-gray-400">
-                              {new Date(ann.createdAt).toLocaleString()}
+                              {new Date(ann.createdAt).toLocaleString(locale === "zh-CN" ? "zh-CN" : "en-US")}
                             </span>
                           </div>
                           <div className="flex items-center gap-2 ml-2 shrink-0">
@@ -566,7 +778,7 @@ export default function OptionsPage() {
             )
           })}
 
-          {!loading && filteredEntries.length > 0 && (query || selectedTag || selectedFolderId) && (
+          {!loading && filteredEntries.length > 0 && (query || selectedTag || selectedFolderId || selectedCategoryId) && (
             <div className="text-center text-[11px] text-gray-400 py-4">
               {L.foundAnnotations(countTotalAnnotations(filteredEntries))}
             </div>

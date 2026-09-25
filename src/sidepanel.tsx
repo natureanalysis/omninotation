@@ -6,11 +6,22 @@ import { initLocale, setLocale, t, getLocale, type Locale } from "@/services/i18
 import * as storage from "@/services/storage"
 import type { Annotation, Reply } from "@/types"
 import { AnnotationCard } from "@/components/AnnotationCard"
+import { CategoryPanel } from "@/components/CategoryPanel"
+import { MarkdownEditor } from "@/components/MarkdownEditor"
 import { ToolbarSettings } from "@/components/ToolbarSettings"
+
+/** 侧边栏的三个功能模块（标签页）：批注 / 分类 / 设置。 */
+type PanelTab = "notes" | "categories" | "settings"
 
 export default function SidePanel() {
   const [locale, setLocaleState] = useState<Locale>(getLocale)
   const L = t(locale)
+  const [activeTab, setActiveTab] = useState<PanelTab>("notes")
+  const panelTabs: { key: PanelTab; label: string }[] = [
+    { key: "notes", label: L.tabNotes },
+    { key: "categories", label: L.tabCategories },
+    { key: "settings", label: L.tabSettings }
+  ]
   const [url, setUrl] = useState("")
   const [title, setTitle] = useState("")
   const [annotations, setAnnotations] = useState<Annotation[]>([])
@@ -29,7 +40,6 @@ export default function SidePanel() {
   const [pageCategories, setPageCategories] = useState<ReturnType<typeof storage.getDefaultPageCategories>>([])
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
   const [suggestedCategoryId, setSuggestedCategoryId] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<"annotations" | "categories">("annotations")
   const [showTagInput, setShowTagInput] = useState(false)
   const [tagInput, setTagInput] = useState("")
   const listRef = useRef<HTMLDivElement>(null)
@@ -97,32 +107,73 @@ export default function SidePanel() {
     }
   }, [applySort])
 
+  const scrollToAnnotation = useCallback((id: string) => {
+    setTimeout(() => {
+      const el = document.querySelector<HTMLElement>(`[data-annotation-id="${id}"]`)
+      if (!el) return
+      el.scrollIntoView({ behavior: "smooth", block: "center" })
+      el.classList.add("ring-2", "ring-blue-500", "ring-offset-1")
+      setTimeout(() => {
+        el.classList.remove("ring-2", "ring-blue-500", "ring-offset-1")
+      }, 1500)
+    }, 120)
+  }, [])
+
   const load = async () => {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-      if (tab?.url) {
-        setUrl(tab.url)
-        setTitle(tab.title || "")
-        const data = await storage.getAnnotations(tab.url)
+      if (!tab?.id) return
+
+      // `tab.title` can be unavailable in the side panel without a privileged
+      // tab property. Ask the content script for the actual document title as a
+      // fallback so regular web pages are not rendered as "Untitled page".
+      let pageUrl = tab.url || ""
+      let pageTitle = tab.title || ""
+      try {
+        const pageInfo = await chrome.tabs.sendMessage(tab.id, { type: "GET_PAGE_INFO" })
+        if (pageInfo?.type === "PAGE_INFO") {
+          pageUrl = pageInfo.url || pageUrl
+          pageTitle = pageInfo.title || pageTitle
+        }
+      } catch {
+        // The page may not have a content script (for example chrome:// pages).
+      }
+
+      if (pageUrl) {
+        setUrl(pageUrl)
+        setTitle(pageTitle)
+        const data = await storage.getAnnotations(pageUrl)
         setAnnotations(data)
-        const order = await storage.getAnnotationOrder(tab.url)
+        const order = await storage.getAnnotationOrder(pageUrl)
         setCustomOrder(order.length > 0 ? order : null)
         const color = await storage.getHighlightColor()
         setHighlightColor(color.bg)
         const bookmarks = await storage.getBookmarks()
-        const currentBm = bookmarks.find((b) => b.url === tab.url)
+        const currentBm = bookmarks.find((b) => b.url === pageUrl)
         setBookmarked(!!currentBm)
         setBookmarkTime(currentBm?.createdAt || null)
         setBookmarkTags(currentBm?.tags || [])
         setSelectedCategoryId(currentBm?.categoryId ?? null)
         const categories = await storage.getPageCategories()
         setPageCategories(categories)
-        const suggested = await storage.getSuggestedPageCategory(tab.url, tab.title || "")
+        const suggested = await storage.getSuggestedPageCategory(pageUrl, pageTitle)
         setSuggestedCategoryId(suggested?.id ?? null)
         if (!currentBm?.categoryId && suggested && categories.some((c) => c.id === suggested.id)) {
           setSelectedCategoryId(suggested.id)
         }
         await fetchPositionsAndSort(data, order.length > 0 ? order : null)
+
+        // 页面选区点击「添加批注」后留下的待编辑标记：进入编辑态并滚动定位
+        const pendingEditId = await storage.consumePendingEditAnnotation(pageUrl)
+        if (pendingEditId) {
+          setActiveTab("notes")
+          setPendingEditIds((prev) => {
+            const next = new Set(prev)
+            next.add(pendingEditId)
+            return next
+          })
+          setTimeout(() => scrollToAnnotation(pendingEditId), 300)
+        }
       }
     } catch (e) {
       console.error("[SidePanel] load error:", e)
@@ -140,7 +191,8 @@ export default function SidePanel() {
       if (area !== "local" || !changes["locale_pref"]) return
       const newLocale = changes["locale_pref"].newValue as Locale
       if (newLocale === "zh-CN" || newLocale === "en") {
-        setLocaleState(newLocale)
+        // Refresh the shared cache too, then mirror it into React state.
+        initLocale().then((l) => setLocaleState(l)).catch(() => setLocaleState(newLocale))
       }
     }
     chrome.storage.onChanged.addListener(listener)
@@ -185,6 +237,9 @@ export default function SidePanel() {
                 emptyIds.forEach((id) => next.add(id))
                 return next
               })
+              scrollToAnnotation(emptyIds[emptyIds.length - 1])
+              // 清掉可能残留的待编辑标记，避免下次加载重复进入编辑态
+              void storage.consumePendingEditAnnotation(url)
             }
           }
         }
@@ -220,7 +275,7 @@ export default function SidePanel() {
       chrome.storage.onChanged.removeListener(onStorageChanged)
       chrome.runtime?.onMessage?.removeListener(messageListener)
     }
-  }, [url])
+  }, [url, scrollToAnnotation])
 
   const handleDelete = useCallback(async (id: string) => {
     // Optimistically update UI state immediately to avoid async re-render issues
@@ -390,7 +445,7 @@ export default function SidePanel() {
       url,
       title: title || url,
       data: { type: "comment", content: newContent.trim() },
-      author: { id: "local-user", name: "Me" },
+      author: { id: "local-user", name: L.me },
       createdAt: new Date().toISOString()
     }
     await storage.saveAnnotation(annotation)
@@ -457,7 +512,7 @@ export default function SidePanel() {
     const urlObj = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = urlObj
-    a.download = `omninotation-backup-${new Date().toISOString().slice(0, 10)}.md`
+    a.download = `OmniNotation-backup-${new Date().toISOString().slice(0, 10)}.md`
     a.click()
     URL.revokeObjectURL(urlObj)
   }
@@ -487,7 +542,7 @@ export default function SidePanel() {
     const a = document.createElement("a")
     a.href = urlObj
     const safeName = title.replace(/[^a-zA-Z0-9\u4e00-\u9fff_-]/g, "_").slice(0, 50) || "page"
-    a.download = `omninotation-${safeName}-${new Date().toISOString().slice(0, 10)}.md`
+    a.download = `OmniNotation-${safeName}-${new Date().toISOString().slice(0, 10)}.md`
     a.click()
     URL.revokeObjectURL(urlObj)
   }
@@ -537,12 +592,15 @@ export default function SidePanel() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-white" style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}>
+    <div className="extension-ui flex flex-col h-screen bg-slate-50" style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}>
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2.5 border-b border-gray-200 shrink-0 bg-white">
-        <div className="min-w-0 flex-1 mr-2">
-          <h1 className="text-sm font-semibold text-gray-800 truncate leading-tight">{title || L.untitledPage}</h1>
-          <p className="text-[10px] text-gray-400 truncate leading-tight mt-0.5">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200/80 shrink-0 bg-gradient-to-r from-white via-white to-blue-50/60">
+        <div className="min-w-0 flex-1 mr-3">
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500 shadow-sm shadow-blue-200" />
+            <h1 className="text-sm font-semibold text-slate-800 truncate leading-tight">{title || L.untitledPage}</h1>
+          </div>
+          <p className="text-[10px] text-slate-400 truncate leading-tight mt-1 ml-4">
             {(() => { try { return decodeURIComponent(url).replace(/^https?:\/\//, "") } catch { return url.replace(/^https?:\/\//, "") } })() || L.unselectedPage}
           </p>
         </div>
@@ -581,42 +639,145 @@ export default function SidePanel() {
         </div>
       </div>
 
-      <div className="px-2 py-2 border-b border-gray-100 shrink-0">
-        <div className="flex rounded-lg bg-gray-100 p-1">
-          {[
-            { key: "annotations", label: "Annotations" },
-            { key: "categories", label: "Categories" }
-          ].map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key as "annotations" | "categories")}
-              className={`flex-1 rounded-md text-[10px] font-medium px-2 py-1.5 transition-colors ${
-                activeTab === tab.key ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+      {/* Page tags */}
+      {(bookmarkTags.length > 0 || showTagInput) && (
+        <div className="px-3 py-1.5 border-b border-gray-100 shrink-0">
+          <div className="flex items-center flex-wrap gap-1" onClick={(e) => e.stopPropagation()}>
+            {bookmarkTags.map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-100">
+                {tag}
+                <button
+                  onClick={() => handleBookmarkTagRemove(tag)}
+                  className="text-amber-400 hover:text-amber-700 ml-0.5 leading-none">
+                  ×
+                </button>
+              </span>
+            ))}
+            {showTagInput ? (
+              <div className="flex items-center gap-1">
+                <input
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleBookmarkTagAdd()
+                    if (e.key === "Escape") { setShowTagInput(false); setTagInput("") }
+                  }}
+                  placeholder={L.tagPlaceholder}
+                  autoFocus
+                  className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 w-20 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <button
+                  onClick={handleBookmarkTagAdd}
+                  disabled={!tagInput.trim()}
+                  className="text-[10px] text-blue-600 hover:text-blue-800 disabled:text-gray-300">
+                  {L.save}
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowTagInput(true)}
+                className="text-[10px] text-gray-400 hover:text-blue-600 px-1 py-0.5 rounded border border-dashed border-gray-300 hover:border-blue-300 transition-colors">
+                {L.addTag}
+              </button>
+            )}
+          </div>
         </div>
+      )}
+
+      {/* Module tabs: annotations / categories / settings */}
+      <div className="flex items-center gap-1 px-3 py-2 border-b border-slate-200/80 shrink-0 bg-white">
+        {panelTabs.map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setActiveTab(key)}
+            className={`flex-1 py-1.5 text-[11px] font-medium rounded-md transition-colors ${
+              activeTab === key
+                ? "bg-blue-600 text-white shadow-sm shadow-blue-200"
+                : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
-      {activeTab === "categories" ? (
-        <div className="px-3 py-3 border-b border-gray-100 shrink-0 space-y-3">
+      {/* Quick actions bar: color + add tag (collapsed) — annotations tab */}
+      <div
+        className={`px-4 py-2 border-b border-slate-200/80 shrink-0 justify-between bg-white/70 ${
+          activeTab === "notes" ? "flex items-center" : "hidden"
+        }`}
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-medium text-slate-400">{L.color}</span>
+          {[
+            { key: "yellow", color: "bg-yellow-400" },
+            { key: "blue", color: "bg-blue-400" },
+            { key: "green", color: "bg-green-400" },
+            { key: "red", color: "bg-red-400" },
+            { key: "purple", color: "bg-purple-400" },
+            { key: "orange", color: "bg-orange-400" }
+          ].map(({ key, color }) => (
+            <button
+              key={key}
+              onClick={() => handleColorChange(key)}
+              className={`w-4 h-4 rounded-full ${color} border-2 transition ${
+                highlightColor.includes(key === "yellow" ? "250, 204, 21" :
+                  key === "blue" ? "59, 130, 246" :
+                  key === "green" ? "34, 197, 94" :
+                  key === "red" ? "239, 68, 68" :
+                  key === "purple" ? "168, 85, 247" :
+                  "249, 115, 22")
+                  ? "border-gray-700"
+                  : "border-transparent"
+              } hover:scale-110 transition-transform`}
+              title={key}
+            />
+          ))}
+        </div>
+        {!showTagInput && bookmarkTags.length === 0 && (
+          <button
+            onClick={() => setShowTagInput(true)}
+            className="text-[10px] text-gray-400 hover:text-blue-600 px-1.5 py-0.5 rounded border border-dashed border-gray-300 hover:border-blue-300 transition-colors"
+          >
+            {L.addTag}
+          </button>
+        )}
+      </div>
+
+      {/* Categories tab */}
+      <div
+        className={`flex-1 min-h-0 overflow-y-auto border-b border-gray-100 bg-white ${
+          activeTab === "categories" ? "" : "hidden"
+        }`}
+      >
+        {/* Bookmark category quick pick (keyword-based suggestion) */}
+        <div className="px-3 py-3 border-b border-gray-100 space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-medium text-gray-600">Page classification</span>
+            <span className="text-[10px] font-medium text-gray-600">{L.catQuickClassify}</span>
             {selectedCategoryId && (
-              <button onClick={() => handleCategorySelect(null)} className="text-[10px] text-gray-500 hover:text-red-500">Clear</button>
+              <button
+                onClick={() => handleCategorySelect(null)}
+                className="text-[10px] text-gray-500 hover:text-red-500"
+              >
+                {L.catClear}
+              </button>
             )}
           </div>
           {suggestedCategoryId && (
             <div className="rounded-md border border-blue-200 bg-blue-50 px-2 py-1.5 text-[10px] text-blue-700">
-              Suggested: <span className="font-semibold">{pageCategories.find((c) => c.id === suggestedCategoryId)?.name || "Unspecified"}</span>
+              {L.catSuggested}:{" "}
+              <span className="font-semibold">
+                {pageCategories.find((c) => c.id === suggestedCategoryId)?.name || L.catUnspecified}
+              </span>
               {selectedCategoryId !== suggestedCategoryId && (
                 <button
                   onClick={() => handleCategorySelect(suggestedCategoryId)}
                   className="ml-2 underline underline-offset-2 hover:text-blue-900"
                 >
-                  Apply
+                  {L.catApply}
                 </button>
               )}
             </div>
@@ -636,235 +797,163 @@ export default function SidePanel() {
                     <span className="text-base" style={{ color: category.color }}>{category.icon}</span>
                     <span className="text-[11px] font-medium text-gray-700 truncate">{category.name}</span>
                   </span>
-                  <span className="w-2.5 h-2.5 rounded-full border border-white" style={{ background: category.color }} />
+                  <span
+                    className="w-2.5 h-2.5 rounded-full border border-white"
+                    style={{ background: category.color }}
+                  />
                 </button>
               )
             })}
           </div>
         </div>
-      ) : (
-        <>
-          {/* Page tags */}
-          {(bookmarkTags.length > 0 || showTagInput) && (
-            <div className="px-3 py-1.5 border-b border-gray-100 shrink-0">
-              <div className="flex items-center flex-wrap gap-1" onClick={(e) => e.stopPropagation()}>
-                {bookmarkTags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-100">
-                    {tag}
-                    <button
-                      onClick={() => handleBookmarkTagRemove(tag)}
-                      className="text-amber-400 hover:text-amber-700 ml-0.5 leading-none">
-                      ×
-                    </button>
-                  </span>
-                ))}
-                {showTagInput ? (
-                  <div className="flex items-center gap-1">
-                    <input
-                      value={tagInput}
-                      onChange={(e) => setTagInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleBookmarkTagAdd()
-                        if (e.key === "Escape") { setShowTagInput(false); setTagInput("") }
-                      }}
-                      placeholder={L.tagPlaceholder}
-                      autoFocus
-                      className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 w-20 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    />
-                    <button
-                      onClick={handleBookmarkTagAdd}
-                      disabled={!tagInput.trim()}
-                      className="text-[10px] text-blue-600 hover:text-blue-800 disabled:text-gray-300">
-                      {L.save}
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setShowTagInput(true)}
-                    className="text-[10px] text-gray-400 hover:text-blue-600 px-1 py-0.5 rounded border border-dashed border-gray-300 hover:border-blue-300 transition-colors">
-                    {L.addTag}
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
 
-          {/* Quick actions bar: color + add tag (collapsed) */}
-          <div className="px-3 py-1.5 border-b border-gray-100 shrink-0 flex items-center justify-between">
-            <div className="flex items-center gap-1">
-              {[
-                { key: "yellow", color: "bg-yellow-400" },
-                { key: "blue", color: "bg-blue-400" },
-                { key: "green", color: "bg-green-400" },
-                { key: "red", color: "bg-red-400" },
-                { key: "purple", color: "bg-purple-400" },
-                { key: "orange", color: "bg-orange-400" }
-              ].map(({ key, color }) => (
-                <button
-                  key={key}
-                  onClick={() => handleColorChange(key)}
-                  className={`w-3.5 h-3.5 rounded-full ${color} border-2 ${
-                    highlightColor.includes(key === "yellow" ? "250, 204, 21" :
-                      key === "blue" ? "59, 130, 246" :
-                      key === "green" ? "34, 197, 94" :
-                      key === "red" ? "239, 68, 68" :
-                      key === "purple" ? "168, 85, 247" :
-                      "249, 115, 22")
-                      ? "border-gray-700"
-                      : "border-transparent"
-                  } hover:scale-110 transition-transform`}
-                  title={key}
-                />
-              ))}
-            </div>
-            {!showTagInput && bookmarkTags.length === 0 && (
-              <button
-                onClick={() => setShowTagInput(true)}
-                className="text-[10px] text-gray-400 hover:text-blue-600 px-1.5 py-0.5 rounded border border-dashed border-gray-300 hover:border-blue-300 transition-colors"
-              >
-                {L.addTag}
-              </button>
-            )}
-          </div>
+        <CategoryPanel url={url} locale={locale} />
+      </div>
 
-          {/* Toolbar settings */}
-          <ToolbarSettings locale={locale} />
+      {/* Settings tab */}
+      <div className={`flex-1 min-h-0 overflow-y-auto ${activeTab === "settings" ? "" : "hidden"}`}>
+        <ToolbarSettings locale={locale} />
+      </div>
 
-          {/* Search + Add */}
-          <div className="px-3 py-2 border-b border-gray-100 shrink-0 space-y-2">
-            <div className="relative">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={L.searchNotePlaceholder}
-                className="w-full text-[11px] border border-gray-200 rounded-md pl-7 pr-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-300 transition-colors"
-              />
-              <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      {/* Search + Add — annotations tab */}
+      <div
+        className={`px-4 py-3 border-b border-slate-200/80 shrink-0 space-y-2 bg-white ${
+          activeTab === "notes" ? "" : "hidden"
+        }`}
+      >
+        <div className="relative">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={L.searchNotePlaceholder}
+            className="w-full text-[11px] border border-gray-200 rounded-md pl-7 pr-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-300 transition-colors"
+          />
+          <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              )}
-            </div>
-            {searchQuery.trim() && (
-              <p className="text-[9px] text-gray-400 leading-tight">
-                {L.searchSyntaxHint}
-              </p>
-            )}
-            {showAddForm ? (
-              <div className="space-y-1">
-                <textarea
-                  value={newContent}
-                  onChange={(e) => setNewContent(e.target.value)}
-                  placeholder={L.pageNotePlaceholder}
-                  className="w-full text-xs border border-gray-200 rounded-md p-2 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
-                  rows={3}
-                  autoFocus
-                />
-                <div className="flex gap-1.5 justify-end">
-                  <button
-                    onClick={() => {
-                      setShowAddForm(false)
-                      setNewContent("")
-                    }}
-                    className="px-2.5 py-1 text-[11px] text-gray-500 hover:text-gray-700 rounded-md border border-gray-200 hover:bg-gray-50 transition-colors">
-                    {L.cancel}
-                  </button>
-                  <button
-                    onClick={handleAddAnnotation}
-                    disabled={!newContent.trim()}
-                    className="px-2.5 py-1 text-[11px] bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                    {L.save}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setShowAddForm(true)}
-                  className="flex-1 py-1.5 text-[11px] font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center gap-1">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  {L.addNote}
-                </button>
-                <button
-                  onClick={handleAddSticky}
-                  className="px-3 py-1.5 text-[11px] font-medium bg-amber-500 text-white rounded-md hover:bg-amber-600 transition-colors"
-                  title={L.stickyNoteBtn}>
-                  {L.stickyNoteBtn}
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* List */}
-          {activeTab === "annotations" && (
-            <div ref={listRef} className="flex-1 overflow-y-auto min-h-0">
-              <div className="sticky top-0 z-10 bg-white/90 backdrop-blur-sm border-b border-gray-100 px-3 py-1 flex items-center justify-between">
-                <span className="text-[10px] text-gray-400">
-                  {searchQuery.trim()
-                    ? L.searchResults(displayAnnotations.filter((a) => matchesSearch(a, searchQuery)).length)
-                    : customOrder ? L.customSort : L.positionSort}
-                </span>
-                {customOrder && !searchQuery.trim() && (
-                  <button
-                    onClick={handleResetOrder}
-                    className="text-[10px] text-blue-600 hover:text-blue-800 hover:underline">
-                    {L.resetToPositionSort}
-                  </button>
-                )}
-              </div>
-              <div className="p-3 space-y-2.5">
-              {displayAnnotations.filter((a) => matchesSearch(a, searchQuery)).length === 0 && (
-                <div className="text-center text-gray-400 text-sm py-8">
-                  {url
-                    ? searchQuery.trim()
-                      ? L.noMatchResults
-                      : L.noNotesAddPrompt
-                    : L.selectTabPrompt}
-                </div>
-              )}
-              {displayAnnotations.filter((a) => matchesSearch(a, searchQuery)).map((ann) => (
-                <AnnotationCard
-                  key={ann.id}
-                  ann={ann}
-                  url={url}
-                  highlightTerms={highlightTerms}
-                  onDelete={handleDelete}
-                  onReplyAdded={handleReplyAdded}
-                  onReplyDeleted={handleReplyDeleted}
-                  onReplyEdited={handleReplyEdited}
-                  onNestedReplyAdded={handleNestedReplyAdded}
-                  onEdit={handleEditAnnotation}
-                  onStatusToggle={handleStatusToggle}
-                  onColorChange={handleAnnotationColorChange}
-                  autoEdit={pendingEditIds.has(ann.id)}
-                  draggable
-                  isDragging={draggingId === ann.id}
-                  isDragOver={dragOverId === ann.id}
-                  onDragStart={(e) => handleDragStart(e, ann.id)}
-                  onDragOver={(e) => handleDragOver(e, ann.id)}
-                  onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, ann.id)}
-                  onDragEnd={handleDragEnd}
-                />
-              ))}
-              </div>
-            </div>
+            </button>
           )}
-        </>
-      )}
+        </div>
+        {searchQuery.trim() && (
+          <p className="text-[9px] text-gray-400 leading-tight">
+            {L.searchSyntaxHint}
+          </p>
+        )}
+        {showAddForm ? (
+          <div className="space-y-1">
+            <MarkdownEditor
+              value={newContent}
+              onChange={setNewContent}
+              placeholder={L.pageNotePlaceholder}
+              rows={3}
+              autoFocus
+              locale={locale}
+              textareaClassName="w-full text-xs border border-gray-200 rounded-md p-2 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+            />
+            <div className="flex gap-1.5 justify-end">
+              <button
+                onClick={() => {
+                  setShowAddForm(false)
+                  setNewContent("")
+                }}
+                className="px-2.5 py-1 text-[11px] text-gray-500 hover:text-gray-700 rounded-md border border-gray-200 hover:bg-gray-50 transition-colors">
+                {L.cancel}
+              </button>
+              <button
+                onClick={handleAddAnnotation}
+                disabled={!newContent.trim()}
+                className="px-2.5 py-1 text-[11px] bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                {L.save}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="flex-1 py-1.5 text-[11px] font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center gap-1">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              {L.addNote}
+            </button>
+            <button
+              onClick={handleAddSticky}
+              className="px-3 py-1.5 text-[11px] font-medium bg-amber-500 text-white rounded-md hover:bg-amber-600 transition-colors"
+              title={L.stickyNoteBtn}>
+              {L.stickyNoteBtn}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* List — annotations tab */}
+      <div
+        ref={listRef}
+        className={`flex-1 overflow-y-auto min-h-0 px-3 pb-4 ${activeTab === "notes" ? "" : "hidden"}`}
+      >
+        <div className="sticky top-0 z-10 bg-slate-50/90 backdrop-blur-sm border-b border-slate-200/70 px-1 py-2 flex items-center justify-between">
+          <span className="text-[10px] text-gray-400">
+            {searchQuery.trim()
+              ? L.searchResults(displayAnnotations.filter((a) => matchesSearch(a, searchQuery)).length)
+              : customOrder ? L.customSort : L.positionSort}
+          </span>
+          {customOrder && !searchQuery.trim() && (
+            <button
+              onClick={handleResetOrder}
+              className="text-[10px] text-blue-600 hover:text-blue-800 hover:underline">
+              {L.resetToPositionSort}
+            </button>
+          )}
+        </div>
+        <div className="p-1 pt-3 space-y-3">
+        {displayAnnotations.filter((a) => matchesSearch(a, searchQuery)).length === 0 && (
+          <div className="text-center text-slate-400 text-sm py-12">
+            <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-lg">✦</div>
+            {url
+              ? searchQuery.trim()
+                ? L.noMatchResults
+                : L.noNotesAddPrompt
+              : L.selectTabPrompt}
+          </div>
+        )}
+        {displayAnnotations.filter((a) => matchesSearch(a, searchQuery)).map((ann) => (
+          <AnnotationCard
+            key={ann.id}
+            ann={ann}
+            url={url}
+            locale={locale}
+            highlightTerms={highlightTerms}
+            onDelete={handleDelete}
+            onReplyAdded={handleReplyAdded}
+            onReplyDeleted={handleReplyDeleted}
+            onReplyEdited={handleReplyEdited}
+            onNestedReplyAdded={handleNestedReplyAdded}
+            onEdit={handleEditAnnotation}
+            onStatusToggle={handleStatusToggle}
+            onColorChange={handleAnnotationColorChange}
+            autoEdit={pendingEditIds.has(ann.id)}
+            draggable
+            isDragging={draggingId === ann.id}
+            isDragOver={dragOverId === ann.id}
+            onDragStart={(e) => handleDragStart(e, ann.id)}
+            onDragOver={(e) => handleDragOver(e, ann.id)}
+            onDragLeave={handleDragLeave}
+            onDrop={(e) => handleDrop(e, ann.id)}
+            onDragEnd={handleDragEnd}
+          />
+        ))}
+        </div>
+      </div>
 
       {/* Footer */}
       <div className="px-3 py-2 border-t border-gray-100 shrink-0 bg-gray-50/50">

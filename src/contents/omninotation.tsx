@@ -5,7 +5,7 @@ import cssText from "data-text:~/style.css"
 
 import { SelectionToolbar } from "@/components/SelectionToolbar"
 import * as anchor from "@/services/anchor"
-import { detectLocale, t, type Locale } from "@/services/i18n"
+import { detectLocale, initLocale, t, type Locale } from "@/services/i18n"
 import { getDomainConfig, shouldActivate } from "@/services/config"
 import {
   HIGHLIGHT_CLASS,
@@ -66,6 +66,22 @@ export default function OmniNotationOverlay() {
   useEffect(() => { popupSelectionRef.current = popupSelection }, [popupSelection])
   const [toolbarConfig, setToolbarConfig] = useState<ToolbarConfig | null>(null)
   const toolbarConfigRef = useRef<ToolbarConfig | null>(null)
+  // Follow the persisted language preference so the in-page UI (selection
+  // toolbar, tooltips, author names) switches language live.
+  const [locale, setLocaleState] = useState<Locale>(detectLocale)
+  useEffect(() => {
+    initLocale().then(setLocaleState).catch(() => {})
+    const onLocaleChange = (changes: any, area: string) => {
+      if (area !== "local" || !changes["locale_pref"]) return
+      const next = changes["locale_pref"].newValue
+      if (next !== "zh-CN" && next !== "en") return
+      // Re-read storage so the shared _currentLocale cache updates too
+      // (other in-page code paths call detectLocale() directly).
+      initLocale().then(setLocaleState).catch(() => setLocaleState(next))
+    }
+    chrome.storage?.onChanged?.addListener(onLocaleChange)
+    return () => chrome.storage?.onChanged?.removeListener(onLocaleChange)
+  }, [])
   const lastSelectionRef = useRef<{ text: string; range: Range; rect?: DOMRect } | null>(null)
   const lastClickedAnnotationId = useRef<string | null>(null)
   const lastLinkText = useRef("")
@@ -376,7 +392,7 @@ export default function OmniNotationOverlay() {
         title: document.title,
         position: { x: e.pageX - 12, y: e.pageY - 12 },
         data: { type: "comment", content: "" },
-        author: { id: "local-user", name: "Me" },
+        author: { id: "local-user", name: t(detectLocale()).me },
         createdAt: new Date().toISOString()
       }).catch(() => {})
     }
@@ -397,6 +413,13 @@ export default function OmniNotationOverlay() {
           document.body.appendChild(tooltip)
           stickyTooltip.current = tooltip
           break
+        case "GET_PAGE_INFO":
+          sendResponse({
+            type: "PAGE_INFO",
+            url: location.href,
+            title: document.title
+          })
+          return true
         case "GET_ANNOTATION_POSITIONS":
           if (!message.annotations) break
           const positions: Record<string, number> = {}
@@ -443,7 +466,7 @@ export default function OmniNotationOverlay() {
               selector,
               quote: selectedMarkdown.slice(0, 2000),
               data: { type: "comment", content: "", markStyle },
-              author: { id: "local-user", name: "Me" },
+              author: { id: "local-user", name: t(detectLocale()).me },
               createdAt: new Date().toISOString()
             }).catch(() => {})
           }
@@ -492,6 +515,7 @@ export default function OmniNotationOverlay() {
         <SelectionToolbar
           selection={{ text: popupSelection.text, range: popupSelection.range, rect: popupSelection.rect }}
           config={toolbarConfig}
+          locale={locale}
           onClose={() => setPopupSelection(null)}
         />
       )}

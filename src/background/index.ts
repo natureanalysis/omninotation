@@ -1,5 +1,7 @@
 // Background service worker for OmniNotation
 
+import { applyCategoryIcon } from "@/services/actionIcon"
+import { resolvePageCategory } from "@/services/categories"
 import * as storage from "@/services/storage"
 
 // i18n for background (service worker can't use navigator.language)
@@ -12,25 +14,40 @@ function bgDetectLocale(): "zh-CN" | "en" {
   }
 }
 
+// Prefer the in-app language preference (locale_pref) so context menus match
+// the language chosen in the side panel / options; fall back to the browser UI
+// language when no preference is stored yet.
+async function bgPreferredLocale(): Promise<"zh-CN" | "en"> {
+  try {
+    const res = await chrome.storage.local.get("locale_pref")
+    if (res?.locale_pref === "zh-CN" || res?.locale_pref === "en") return res.locale_pref
+  } catch {
+    // storage unavailable – fall through to browser language
+  }
+  return bgDetectLocale()
+}
+
 const BG_STRINGS = {
   "zh-CN": {
     contextMenuHighlight: "▌ 高亮",
     contextMenuUnderline: "U̲ 下划线",
     contextMenuStrikethrough: "S̶ 删除线",
     contextMenuSquiggly: "〰 波浪线",
-    contextMenuDelete: "删除此批注"
+    contextMenuDelete: "删除此批注",
+    contextMenuCopyLinkName: "复制链接名称"
   },
   en: {
     contextMenuHighlight: "▌ Highlight",
     contextMenuUnderline: "U̲ Underline",
     contextMenuStrikethrough: "S̶ Strikethrough",
     contextMenuSquiggly: "〰 Squiggly",
-    contextMenuDelete: "Delete this annotation"
+    contextMenuDelete: "Delete this annotation",
+    contextMenuCopyLinkName: "Copy Link Name"
   }
 }
 
-function getBgStrings() {
-  return BG_STRINGS[bgDetectLocale()]
+async function getBgStrings() {
+  return BG_STRINGS[await bgPreferredLocale()]
 }
 
 const MARK_STYLE_ITEMS = [
@@ -41,26 +58,29 @@ const MARK_STYLE_ITEMS = [
 ] as const
 
 function setupContextMenu() {
-  const S = getBgStrings()
-  chrome.contextMenus.removeAll(() => {
-    for (const item of MARK_STYLE_ITEMS) {
+  // Menus are (re)created asynchronously after reading the locale preference.
+  void (async () => {
+    const S = await getBgStrings()
+    chrome.contextMenus.removeAll(() => {
+      for (const item of MARK_STYLE_ITEMS) {
+        chrome.contextMenus.create({
+          id: item.id,
+          title: S[item.titleKey],
+          contexts: ["selection"]
+        })
+      }
       chrome.contextMenus.create({
-        id: item.id,
-        title: S[item.titleKey],
-        contexts: ["selection"]
+        id: "omninotation-delete-annotation",
+        title: S.contextMenuDelete,
+        contexts: ["page"]
       })
-    }
-    chrome.contextMenus.create({
-      id: "omninotation-delete-annotation",
-      title: S.contextMenuDelete,
-      contexts: ["page"]
+      chrome.contextMenus.create({
+        id: "omninotation-copy-link-name",
+        title: S.contextMenuCopyLinkName,
+        contexts: ["link"]
+      })
     })
-    chrome.contextMenus.create({
-      id: "omninotation-copy-link-name",
-      title: "Copy Link Name",
-      contexts: ["link"]
-    })
-  })
+  })()
 }
 
 async function ensureOptionalPageAccess(tab?: chrome.tabs.Tab): Promise<boolean> {
@@ -135,6 +155,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "HIGHLIGHT_CLICKED" && sender.tab?.windowId) {
     chrome.sidePanel.open({ windowId: sender.tab.windowId }).catch(() => {})
   }
+  // 页面选区点击「添加批注」后打开侧边栏，让用户在笔记面板中编辑
+  if (message.type === "OPEN_SIDE_PANEL") {
+    const windowId = sender.tab?.windowId
+    if (windowId) {
+      chrome.sidePanel.open({ windowId }).catch(() => {})
+    }
+    sendResponse({ ok: true })
+    return true
+  }
   if (message.type === "OPEN_BACKGROUND_TAB" && message.url) {
     chrome.tabs.create({ url: message.url, active: false }).catch(() => {})
     sendResponse({ ok: true })
@@ -144,6 +173,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     chrome.tabs.create({ url: message.url, pinned: true }).catch(() => {})
     sendResponse({ ok: true })
     return true
+  }
+  // 侧边栏改完分类后立刻刷新工具栏图标（storage 变更监听是兜底，这条保证不延迟）
+  if (message.type === "REFRESH_ACTION_ICON") {
+    void (async () => {
+      try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+        if (tab?.id && tab?.url) await updateActionIcon(tab.id, tab.url)
+      } catch {
+        /* ignore */
+      }
+    })()
+    sendResponse({ ok: true })
+    return false
   }
 })
 
@@ -209,6 +251,14 @@ async function updateActionIcon(tabId: number, url: string | undefined) {
     return
   }
 
+  const pageCategory = await resolvePageCategory(url)
+  if (pageCategory.category) {
+    // 按标签页设置图标，避免全局图标盖掉其它标签页的状态
+    await applyCategoryIcon(pageCategory.category, tabId)
+    chrome.action.setBadgeText({ tabId, text: "" })
+    return
+  }
+
   await ensureIcons()
   const bookmarks = await storage.getBookmarks()
   const bookmark = bookmarks.find((b) => b.url === url)
@@ -245,10 +295,21 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   }
 })
 
-// Update icon when bookmarks change in storage
+// 图标相关的存储键：收藏状态、分类定义、页面分类指定，
+// 以及自动规则依赖的批注统计（annotations:<url>）。任一变化都要立刻刷新图标，
+// 否则「更换分类后图标要等切标签页才更新」。
+const ICON_REFRESH_KEYS = new Set(["bookmarks", "page_categories", "page_category_assignments"])
+
 chrome.storage.onChanged.addListener(async (changes, area) => {
   if (area !== "local") return
-  if (!changes["bookmarks"]) return
+
+  const touched = Object.keys(changes)
+  // Language switch → rebuild context menus in the new locale
+  if (changes["locale_pref"]) {
+    setupContextMenu()
+  }
+  const relevant = touched.some((key) => ICON_REFRESH_KEYS.has(key) || key.startsWith("annotations:"))
+  if (!relevant) return
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
   if (tab?.id && tab?.url) {

@@ -4,7 +4,7 @@ import * as anchor from "@/services/anchor"
 import { getDomainConfig } from "@/services/config"
 import { rangeToMarkdown } from "@/services/htmlToMarkdown"
 import * as storage from "@/services/storage"
-import { COLOR_PRESETS, DEFAULT_ANNOTATION_COLOR, getLocalIconUrl, hexToRgba } from "@/services/color"
+import { DEFAULT_ANNOTATION_COLOR, getLocalIconUrl } from "@/services/color"
 import { detectLocale, t, type Locale } from "@/services/i18n"
 import type { MarkStyle, ToolbarConfig, ToolbarSearchEngine } from "@/types"
 
@@ -210,19 +210,17 @@ interface SelectionToolbarProps {
   selection: ToolbarSelection
   config: ToolbarConfig
   onClose: () => void
+  locale?: Locale
 }
 
-export function SelectionToolbar({ selection, config, onClose }: SelectionToolbarProps) {
+export function SelectionToolbar({ selection, config, onClose, locale: localeProp }: SelectionToolbarProps) {
   const { text, range, rect } = selection
   const menuRef = useRef<HTMLDivElement>(null)
-  const [showCommentForm, setShowCommentForm] = useState(false)
-  const [comment, setComment] = useState("")
-  const [markStyle, setMarkStyle] = useState<MarkStyle>("highlight")
-  const [annotationColor, setAnnotationColor] = useState<string | undefined>(DEFAULT_ANNOTATION_COLOR)
   const [copySuccess, setCopySuccess] = useState(false)
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isOverSelection = useRef(false)
-  const locale = useRef<Locale>(detectLocale()).current
+  // Follow the shell locale so the toolbar re-renders on language switch.
+  const locale = localeProp ?? detectLocale()
 
   const L = t(locale)
   const MARK_STYLES = getMarkStyles(locale)
@@ -352,8 +350,8 @@ export function SelectionToolbar({ selection, config, onClose }: SelectionToolba
         title: document.title,
         selector,
         quote: selectedMarkdown.slice(0, 2000),
-        data: { type: "comment", content: userContent.trim(), markStyle: styleArg, color: annotationColor },
-        author: { id: "local-user", name: "Me" },
+        data: { type: "comment", content: userContent.trim(), markStyle: styleArg, color: DEFAULT_ANNOTATION_COLOR },
+        author: { id: "local-user", name: L.me },
         createdAt: new Date().toISOString()
       })
 
@@ -361,6 +359,38 @@ export function SelectionToolbar({ selection, config, onClose }: SelectionToolba
     },
     [range, text, onClose]
   )
+
+  // 「添加批注」：不再在页面内联编辑，而是先创建一条空内容批注并跳转到
+  // 右侧边栏的笔记面板，由侧边栏的 Markdown 编辑器完成内容编辑。
+  const handleAddNote = useCallback(async () => {
+    const cfg = getDomainConfig(location.href)
+    const root = anchor.getRootElement(cfg.rootSelector)
+    const selector = anchor.describeRange(root, range)
+    if (!selector) {
+      alert(L.anchorFailed)
+      return
+    }
+
+    const selectedMarkdown = rangeToMarkdown(range) || text
+    const id = crypto.randomUUID()
+    await storage.saveAnnotation({
+      id,
+      url: location.href,
+      title: document.title,
+      selector,
+      quote: selectedMarkdown.slice(0, 2000),
+      data: { type: "comment", content: "", markStyle: "highlight", color: DEFAULT_ANNOTATION_COLOR },
+      author: { id: "local-user", name: L.me },
+      createdAt: new Date().toISOString()
+    })
+    await storage.setPendingEditAnnotation(location.href, id)
+    try {
+      await chrome.runtime.sendMessage({ type: "OPEN_SIDE_PANEL" })
+    } catch {
+      // background 不可用时静默失败，批注已保存
+    }
+    onClose()
+  }, [range, text, onClose, L.anchorFailed])
 
   const handleSearch = useCallback(
     async (engine: ToolbarSearchEngine) => {
@@ -435,89 +465,6 @@ export function SelectionToolbar({ selection, config, onClose }: SelectionToolba
     )
   }
 
-  if (showCommentForm) {
-    return (
-      <div
-        ref={menuRef}
-        style={containerStyle}
-        className="w-64"
-        onMouseEnter={clearCloseTimer}
-        onMouseLeave={startCloseTimer}
-        onMouseDown={(e) => e.preventDefault()}
-      >
-        <div className="text-xs opacity-60 mb-1">{L.addComment}</div>
-        <textarea
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-          placeholder={L.commentPlaceholder}
-          className="w-full text-xs border border-gray-200 rounded p-2 mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-          style={{ backgroundColor: "white", color: "#374151" }}
-          rows={3}
-          autoFocus
-        />
-        <div className="flex gap-1 mb-2">
-          {MARK_STYLES.map(({ key, label: lbl, icon }) => (
-            <button
-              key={key}
-              onClick={() => setMarkStyle(key)}
-              title={lbl}
-              className={`flex-1 text-xs py-1 rounded border transition-colors ${
-                markStyle === key
-                  ? "bg-blue-50 border-blue-300 text-blue-700"
-                  : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"
-              }`}
-            >
-              {icon}
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-1 mb-2">
-          <span className="text-[10px] text-gray-400">{L.color}</span>
-          {COLOR_PRESETS.map(({ c, cls }) => (
-            <button
-              key={c}
-              onClick={() => setAnnotationColor(c)}
-              className={`w-4 h-4 rounded-full ${cls} border-2 ${annotationColor === c ? "border-gray-800" : "border-transparent hover:border-gray-400"}`}
-              title={c}
-            />
-          ))}
-          <label className="relative w-4 h-4 rounded-full border-2 border-gray-300 hover:border-gray-500 cursor-pointer flex items-center justify-center overflow-hidden" title={L.customColor}>
-            <input
-              type="color"
-              className="absolute inset-0 opacity-0 cursor-pointer"
-              value={annotationColor ? (annotationColor.startsWith("rgba") ? "#facc15" : annotationColor) : "#facc15"}
-              onChange={(e) => setAnnotationColor(hexToRgba(e.target.value))}
-            />
-            <span className="text-[8px] text-gray-500">+</span>
-          </label>
-          {annotationColor && (
-            <button
-              onClick={() => setAnnotationColor(undefined)}
-              className="text-[10px] text-gray-400 hover:text-gray-600 ml-1"
-            >
-              {L.defaultColor}
-            </button>
-          )}
-        </div>
-        <div className="flex justify-end gap-2">
-          <button
-            onClick={() => setShowCommentForm(false)}
-            className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-50"
-          >
-            {L.back}
-          </button>
-          <button
-            onClick={() => saveAnnotation(markStyle, comment)}
-            disabled={!comment.trim()}
-            className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {L.save}
-          </button>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div
       ref={menuRef}
@@ -541,7 +488,7 @@ export function SelectionToolbar({ selection, config, onClose }: SelectionToolba
           ))}
           <button
             title={L.addComment}
-            onClick={() => setShowCommentForm(true)}
+            onClick={handleAddNote}
             style={buttonStyle}
           >
             📝

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import type { MountedAnnotation } from "@/hooks/useAnnotations"
+import { detectLocale, t } from "@/services/i18n"
 
 interface AnnotationMarkerProps {
   mounted: MountedAnnotation
@@ -9,6 +10,7 @@ interface AnnotationMarkerProps {
 export function AnnotationMarker({ mounted, onDelete }: AnnotationMarkerProps) {
   const [tooltipVisible, setTooltipVisible] = useState(false)
   const markerRef = useRef<HTMLSpanElement>(null)
+  const L = t(detectLocale())
 
   useEffect(() => {
     if (!mounted.range) return
@@ -67,7 +69,10 @@ export function AnnotationMarker({ mounted, onDelete }: AnnotationMarkerProps) {
             minWidth: "180px"
           }}>
           <strong style={{ fontSize: "12px", opacity: 0.8 }}>
-            {mounted.data.type === "edit" ? "Edit" : "Comment"} by {mounted.author.name}
+            {L.annotationBy(
+              mounted.data.type === "edit" ? L.filterEdit : L.filterComment,
+              mounted.author.name
+            )}
           </strong>
           <span style={{ maxWidth: "240px", whiteSpace: "normal", lineHeight: 1.4 }}>
             {mounted.data.content}
@@ -88,8 +93,10 @@ export function AnnotationMarker({ mounted, onDelete }: AnnotationMarkerProps) {
                 borderRadius: "4px",
                 fontSize: "11px",
                 cursor: "pointer"
-              }}>
-              Delete
+              }}
+              title={L.delete}
+              aria-label={L.delete}>
+              {L.delete}
             </button>
           )}
         </span>

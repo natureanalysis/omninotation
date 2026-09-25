@@ -1,9 +1,10 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import * as storage from "@/services/storage"
 import { COLOR_PRESETS, hexToRgba } from "@/services/color"
 import { detectLocale, t, type Locale } from "@/services/i18n"
 import type { Annotation, Reply } from "@/types"
 import { MarkdownContent } from "./MarkdownContent"
+import { MarkdownEditor } from "./MarkdownEditor"
 import { ReplyThread } from "./ReplyThread"
 
 export function AnnotationCard({
@@ -26,7 +27,8 @@ export function AnnotationCard({
   onDragOver,
   onDragLeave,
   onDrop,
-  onDragEnd
+  onDragEnd,
+  locale: localeProp
 }: {
   ann: Annotation
   url: string
@@ -48,21 +50,32 @@ export function AnnotationCard({
   onDragLeave?: (e: React.DragEvent<HTMLDivElement>) => void
   onDrop?: (e: React.DragEvent<HTMLDivElement>) => void
   onDragEnd?: (e: React.DragEvent<HTMLDivElement>) => void
+  locale?: Locale
 }) {
   const [replyText, setReplyText] = useState("")
   const [showReply, setShowReply] = useState(false)
-  const locale = useRef<Locale>(detectLocale()).current
+  // Follow the locale passed down from the shell (side panel) so a language
+  // switch re-renders every card; fall back to the detected locale.
+  const locale = localeProp ?? detectLocale()
   const L = t(locale)
   const initialAutoEditRef = useRef(autoEdit)
   const [isEditing, setIsEditing] = useState(() => initialAutoEditRef.current || false)
   const [editText, setEditText] = useState(ann.data.content)
+
+  // 侧边栏外部触发（例如页面选区「添加批注」）时，即使卡片已挂载也要进入编辑态
+  useEffect(() => {
+    if (autoEdit) {
+      setIsEditing(true)
+      setEditText(ann.data.content)
+    }
+  }, [autoEdit, ann.data.content])
   const [showColorPicker, setShowColorPicker] = useState(false)
   const handleAddReply = async () => {
     if (!replyText.trim() || !url) return
     const reply: Reply = {
       id: crypto.randomUUID(),
       content: replyText.trim(),
-      author: { id: "local-user", name: "Me" },
+      author: { id: "local-user", name: L.me },
       createdAt: new Date().toISOString()
     }
     await storage.addReply(url, ann.id, reply)
@@ -87,7 +100,7 @@ export function AnnotationCard({
     const reply: Reply = {
       id: crypto.randomUUID(),
       content,
-      author: { id: "local-user", name: "Me" },
+      author: { id: "local-user", name: L.me },
       parentId: parentReplyId,
       createdAt: new Date().toISOString()
     }
@@ -123,12 +136,12 @@ export function AnnotationCard({
       onDragLeave={onDragLeave}
       onDrop={onDrop}
       onDragEnd={onDragEnd}
-      className={`rounded-lg border p-3 cursor-pointer transition-all ${
+      className={`rounded-xl border p-3.5 cursor-pointer transition-all duration-200 ${
         isDragging
           ? "opacity-50 border-dashed border-blue-300 bg-blue-50"
           : isDragOver
-          ? "border-blue-400 bg-blue-50 shadow-md"
-          : "border-gray-100 bg-gray-50 hover:shadow-md"
+          ? "border-blue-400 bg-blue-50 shadow-lg shadow-blue-100/60"
+          : "border-slate-200/80 bg-white hover:border-blue-200 hover:bg-blue-50/30 hover:shadow-md hover:shadow-slate-200/50"
       }`}
       title={L.clickToJump}>
       {/* Header */}
@@ -153,7 +166,7 @@ export function AnnotationCard({
             </span>
           )}
           <span className="text-[10px] text-gray-400">
-            {new Date(ann.createdAt).toLocaleString()}
+            {new Date(ann.createdAt).toLocaleString(locale === "zh-CN" ? "zh-CN" : "en-US")}
           </span>
         </div>
         <div className="flex gap-2 items-center">
@@ -162,7 +175,7 @@ export function AnnotationCard({
               <button
                 onClick={(e) => { e.stopPropagation(); setShowColorPicker((v) => !v) }}
                 className="text-xs text-gray-400 hover:text-gray-600"
-                title="Color"
+                title={L.color}
               >
                 🎨
               </button>
@@ -201,24 +214,52 @@ export function AnnotationCard({
               onStatusToggle(ann.id)
             }}
             title={ann.status === "resolved" ? L.markPending : L.markResolved}
-            className={`text-xs hover:underline ${ann.status === "resolved" ? "text-green-500 hover:text-green-700" : "text-gray-400 hover:text-gray-600"}`}>
-            {ann.status === "resolved" ? `↩ ${L.undo}` : `✓ ${L.resolve}`}
+            aria-label={ann.status === "resolved" ? L.markPending : L.markResolved}
+            className={`p-1 rounded transition-colors ${
+              ann.status === "resolved"
+                ? "text-green-500 hover:bg-green-50 hover:text-green-700"
+                : "text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            }`}>
+            {ann.status === "resolved" ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 7v6h6" />
+                <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" />
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <polyline points="22 4 12 14.01 9 11.01" />
+              </svg>
+            )}
           </button>
           <button
             onClick={(e) => {
               e.stopPropagation()
               setIsEditing(true)
             }}
-            className="text-xs text-gray-500 hover:text-gray-700 hover:underline">
-            {L.edit}
+            title={L.edit}
+            aria-label={L.edit}
+            className="p-1 rounded text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+              <path d="m15 5 4 4" />
+            </svg>
           </button>
           <button
             onClick={(e) => {
               e.stopPropagation()
               onDelete(ann.id)
             }}
-            className="text-xs text-red-500 hover:text-red-700 hover:underline">
-            {L.delete}
+            title={L.delete}
+            aria-label={L.delete}
+            className="p-1 rounded text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 6h18" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+              <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              <line x1="10" x2="10" y1="11" y2="17" />
+              <line x1="14" x2="14" y1="11" y2="17" />
+            </svg>
           </button>
         </div>
       </div>
@@ -244,16 +285,17 @@ export function AnnotationCard({
       )}
 
       {/* User comment (if any) */}
-      {ann.data.content && (
+      {(ann.data.content || isEditing) && (
         <div className="mb-2" onClick={(e) => e.stopPropagation()}>
           {isEditing ? (
             <div className="space-y-1">
-              <textarea
+              <MarkdownEditor
                 value={editText}
-                onChange={(e) => setEditText(e.target.value)}
-                className="w-full text-xs border border-gray-200 rounded p-2 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+                onChange={setEditText}
+                placeholder={L.addCommentMarkdown}
                 rows={3}
                 autoFocus
+                locale={locale}
               />
               <div className="flex gap-1 justify-end">
                 <button
@@ -282,6 +324,7 @@ export function AnnotationCard({
             <ReplyThread
               key={reply.id}
               reply={reply}
+              locale={locale}
               onDelete={(id) => handleDeleteReply(id)}
               onEdit={(id, content) => handleEditReply(id, content)}
               onReply={(id, content) => handleNestedReply(id, content)}

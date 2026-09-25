@@ -1,4 +1,4 @@
-import { useRef, useState } from "react"
+import { useState } from "react"
 import type { Reply } from "@/types"
 import { detectLocale, t, type Locale } from "@/services/i18n"
 import { MarkdownContent } from "./MarkdownContent"
@@ -6,12 +6,14 @@ import { MarkdownContent } from "./MarkdownContent"
 export function ReplyThread({
   reply,
   depth = 0,
+  locale: localeProp,
   onDelete,
   onEdit,
   onReply
 }: {
   reply: Reply
   depth?: number
+  locale?: Locale
   onDelete: (replyId: string) => void
   onEdit: (replyId: string, content: string) => void
   onReply: (parentReplyId: string, content: string) => void
@@ -20,7 +22,9 @@ export function ReplyThread({
   const [editText, setEditText] = useState(reply.content)
   const [showReplyBox, setShowReplyBox] = useState(false)
   const [replyText, setReplyText] = useState("")
-  const locale = useRef<Locale>(detectLocale()).current
+  // Follow the shell locale (propagated from the side panel) so nested
+  // replies re-render on language switch.
+  const locale = localeProp ?? detectLocale()
   const L = t(locale)
 
   const handleSave = () => {
@@ -73,7 +77,7 @@ export function ReplyThread({
               <span className="text-[10px] font-medium text-gray-600">{reply.author?.name || L.anonymous}</span>
               <span className="text-[9px] text-gray-300">·</span>
               <span className="text-[10px] text-gray-400">
-                {new Date(reply.createdAt).toLocaleString()}
+                {new Date(reply.createdAt).toLocaleString(locale === "zh-CN" ? "zh-CN" : "en-US")}
               </span>
             </div>
             <MarkdownContent text={reply.content} />
@@ -132,6 +136,7 @@ export function ReplyThread({
               key={child.id}
               reply={child}
               depth={depth + 1}
+              locale={locale}
               onDelete={onDelete}
               onEdit={onEdit}
               onReply={onReply}

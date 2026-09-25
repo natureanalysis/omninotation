@@ -33,12 +33,13 @@ export function ActionMenu({
   onClose: () => void
 }) {
   const formType = "comment"
-  const locale = useRef<Locale>(detectLocale()).current
+  // Re-evaluate per render so a language switch re-renders labels.
+  const locale = detectLocale()
   const L = t(locale)
   const MARK_STYLES = getMarkStyles(locale)
   const [content, setContent] = useState("")
   const [markStyle, setMarkStyle] = useState<MarkStyle>(defaultMarkStyle)
-  const [authorName, setAuthorName] = useState("Me")
+  const [authorName, setAuthorName] = useState(L.me)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {

@@ -14,3 +14,249 @@
     background-color: rgba(250, 204, 21, 0.25);
   }
 }
+
+/* Shared UI foundation for the extension pages. Scoped so the content script
+   never changes the host page's styles. */
+.extension-ui {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #1e293b;
+  background: #f8fafc;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.extension-ui,
+.extension-ui * {
+  box-sizing: border-box;
+}
+
+.extension-ui button,
+.extension-ui input,
+.extension-ui textarea,
+.extension-ui select {
+  font: inherit;
+}
+
+.extension-ui button:focus-visible,
+.extension-ui input:focus-visible,
+.extension-ui textarea:focus-visible,
+.extension-ui select:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 2px;
+}
+
+.extension-ui ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.extension-ui ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.extension-ui ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.extension-ui ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+  background-clip: padding-box;
+}
+
+.extension-ui .markdown-body > :first-child {
+  margin-top: 0;
+}
+
+.extension-ui .markdown-body > :last-child {
+  margin-bottom: 0;
+}
+
+.extension-ui .markdown-body a {
+  color: #2563eb;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Rendered Markdown typography. Tailwind preflight (@tailwind base) resets
+   heading sizes, list markers, blockquote/table borders, and code backgrounds,
+   which makes rendered Markdown look like plain text — restore them here. */
+.extension-ui .markdown-body h1,
+.extension-ui .markdown-body h2,
+.extension-ui .markdown-body h3,
+.extension-ui .markdown-body h4,
+.extension-ui .markdown-body h5,
+.extension-ui .markdown-body h6 {
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 1em 0 0.5em;
+}
+
+.extension-ui .markdown-body h1 { font-size: 1.6em; }
+.extension-ui .markdown-body h2 { font-size: 1.4em; }
+.extension-ui .markdown-body h3 { font-size: 1.25em; }
+.extension-ui .markdown-body h4 { font-size: 1.1em; }
+.extension-ui .markdown-body h5 { font-size: 1em; }
+.extension-ui .markdown-body h6 { font-size: 0.95em; color: #64748b; }
+
+.extension-ui .markdown-body p {
+  margin: 0.5em 0;
+}
+
+.extension-ui .markdown-body ul,
+.extension-ui .markdown-body ol {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}
+
+.extension-ui .markdown-body ul { list-style: disc; }
+.extension-ui .markdown-body ul ul { list-style: circle; }
+.extension-ui .markdown-body ul ul ul { list-style: square; }
+.extension-ui .markdown-body ol { list-style: decimal; }
+
+.extension-ui .markdown-body li {
+  margin: 0.2em 0;
+}
+
+.extension-ui .markdown-body li > p {
+  margin: 0.3em 0;
+}
+
+/* GFM task list checkboxes */
+.extension-ui .markdown-body li > input[type="checkbox"] {
+  margin-right: 0.35em;
+  vertical-align: middle;
+}
+
+.extension-ui .markdown-body blockquote {
+  margin: 0.6em 0;
+  padding: 0.2em 0.9em;
+  border-left: 3px solid #d0d7de;
+  color: #57606a;
+}
+
+.extension-ui .markdown-body code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  background: #f1f5f9;
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+
+.extension-ui .markdown-body pre {
+  background: #f6f8fa;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 0.6em 0;
+  overflow-x: auto;
+}
+
+.extension-ui .markdown-body pre code {
+  background: transparent;
+  padding: 0;
+  font-size: 0.9em;
+  line-height: 1.55;
+}
+
+.extension-ui .markdown-body hr {
+  border: 0;
+  border-top: 1px solid #e2e8f0;
+  margin: 1em 0;
+}
+
+.extension-ui .markdown-body table {
+  border-collapse: collapse;
+  margin: 0.6em 0;
+  width: 100%;
+  font-size: 0.95em;
+  display: block;
+  overflow-x: auto;
+}
+
+.extension-ui .markdown-body th,
+.extension-ui .markdown-body td {
+  border: 1px solid #e2e8f0;
+  padding: 4px 8px;
+  text-align: left;
+}
+
+.extension-ui .markdown-body th {
+  background: #f8fafc;
+  font-weight: 600;
+}
+
+.extension-ui .markdown-body img {
+  max-width: 100%;
+  border-radius: 4px;
+}
+
+.extension-ui .markdown-body strong,
+.extension-ui .markdown-body b {
+  font-weight: 700;
+}
+
+.extension-ui .markdown-body del {
+  color: #94a3b8;
+}
+
+/* MarkdownEditor: adjustable height (drag handle) + Obsidian-style split preview.
+   The container height is driven by the --md-editor-h custom property set inline
+   by the component. Without preview the body is one editor height tall; stacked
+   preview doubles it, and the wide-screen (sm+) layout splits side by side. */
+.markdown-editor-body {
+  display: flex;
+  flex-direction: column;
+  height: var(--md-editor-h, 120px);
+}
+
+.markdown-editor-body > textarea {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.markdown-editor-body.has-preview {
+  height: calc(var(--md-editor-h, 120px) * 2);
+}
+
+.markdown-editor-body.has-preview > textarea,
+.markdown-editor-body.has-preview .markdown-editor-preview {
+  flex: 1 1 50%;
+  min-width: 0;
+}
+
+.markdown-editor-preview {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+@media (min-width: 640px) {
+  .markdown-editor-body.has-preview {
+    flex-direction: row;
+    height: var(--md-editor-h, 120px);
+  }
+}
+
+.markdown-editor-resize {
+  height: 12px;
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: row-resize;
+  color: #cbd5e1;
+  user-select: none;
+  touch-action: none;
+  border-radius: 4px;
+}
+
+.markdown-editor-resize:hover {
+  color: #94a3b8;
+}

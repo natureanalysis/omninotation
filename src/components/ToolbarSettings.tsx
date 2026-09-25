@@ -18,7 +18,7 @@ export function ToolbarSettings({ locale: localeProp }: { locale?: Locale } = {}
   const locale = localeProp || detectLocale()
   const L = t(locale)
   const [config, setConfig] = useState<ToolbarConfig | null>(null)
-  const [showSettings, setShowSettings] = useState(false)
+  const [showSettings, setShowSettings] = useState(true)
   const [newEngineName, setNewEngineName] = useState("")
   const [newEngineUrl, setNewEngineUrl] = useState("")
   const [newEngineIcon, setNewEngineIcon] = useState("")
@@ -511,7 +511,7 @@ export function ToolbarSettings({ locale: localeProp }: { locale?: Locale } = {}
                         }}
                         disabled={downloadingId === engine.id}
                         className={`px-1 ${downloadingId === engine.id ? "text-blue-400 animate-pulse" : "text-gray-400 hover:text-blue-600"}`}
-                        title="Download icon"
+                        title={L.downloadIcon}
                       >
                         {downloadingId === engine.id ? "⏳" : "⬇"}
                       </button>

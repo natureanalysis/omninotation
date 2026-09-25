@@ -1,9 +1,9 @@
 {
   "name": "omninotation",
-  "displayName": "omninotation",
-  "version": "0.0.1",
+  "displayName": "OmniNotation",
+  "version": "0.1.0",
   "description": "Universal web page annotation and rewrite system",
-  "author": "omninotation Team",
+  "author": "OmniNotation Team",
   "scripts": {
     "dev": "plasmo dev",
     "build": "plasmo build",

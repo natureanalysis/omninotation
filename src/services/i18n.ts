@@ -51,6 +51,17 @@ const translations = {
     undo: "撤销",
     resolve: "解决",
     edit: "编辑",
+    mdBold: "加粗",
+    mdItalic: "斜体",
+    mdStrikethrough: "删除线",
+    mdHeading: "标题",
+    mdBulletList: "无序列表",
+    mdOrderedList: "有序列表",
+    mdQuote: "引用",
+    mdInlineCode: "行内代码",
+    mdCodeBlock: "代码块",
+    mdLink: "链接",
+    mdDivider: "分隔线",
     addCommentMarkdown: "添加评论（支持完整 Markdown）",
     send: "发送",
     addCommentBtn: "添加评论",
@@ -68,6 +79,34 @@ const translations = {
     // sidepanel.tsx
     untitledPage: "未命名页面",
     unselectedPage: "未选择页面",
+    tabNotes: "批注",
+    tabCategories: "分类",
+    tabSettings: "设置",
+    categories: "分类",
+    pageCategory: "本页分类",
+    catAuto: "自动",
+    catNone: "无",
+    catAutoHint: "按分类的自动规则决定；本页暂无命中的规则。",
+    catNoneHint: "本页已设为「不标注」，自动规则不会生效。",
+    catManualHint: (name: string) => `已手动指定为「${name}」`,
+    catAutoMatched: (name: string) => `命中自动规则，已归入「${name}」`,
+    manageCategories: "管理分类",
+    catName: "名称",
+    catColor: "颜色",
+    catIcon: "图标",
+    catAutoRule: "自动规则",
+    catRuleNone: "不自动",
+    catRuleHasAnnotations: "有批注时",
+    catRuleHasComments: "有批注内容时",
+    addCategory: "添加分类",
+    catAnnotatedCount: (n: number) => `本页有 ${n} 条批注`,
+    catUntitled: "未命名分类",
+    catEmptyHint: "还没有分类，先在下方添加一个。",
+    catQuickClassify: "书签分类",
+    catSuggested: "建议",
+    catApply: "应用",
+    catClear: "清除",
+    catUnspecified: "未指定",
     openDashboard: "打开仪表盘",
     unbookmark: "取消收藏",
     bookmark: "收藏此页面",
@@ -126,6 +165,9 @@ const translations = {
     annotationsCount: (n: number) => `${n} 条批注`,
     jump: "跳转",
     replyCount: (n: number) => `${n} 条回复`,
+    uncategorized: "未分类",
+    categoryManual: "手动",
+    categoryFilter: "分类筛选：",
     foundAnnotations: (n: number) => `找到 ${n} 条批注`,
 
     // background/index.ts
@@ -185,7 +227,25 @@ const translations = {
     urlMustContainPlaceholder: "搜索 URL 必须包含 %s 或 {POSTARGS}",
     resetConfirm: "确定要重置为默认配置吗？",
     seconds: "秒",
-    languageLabel: "语言"
+    languageLabel: "语言",
+
+    // MarkdownEditor (adjustable height + live preview)
+    livePreview: "实时预览",
+    hidePreview: "隐藏预览",
+    previewEmpty: "输入内容后，这里会实时显示渲染效果",
+    resizeEditor: "拖动调整编辑器高度",
+    // ToolbarSettings.tsx
+    downloadIcon: "下载图标",
+    // author name used when creating annotations/replies
+    me: "我",
+    // AnnotationMarker.tsx – “Comment by Alice” / “批注 · Alice”
+    annotationBy: (kind: string, name: string) => `${kind} · ${name}`,
+    // Markdown export (storage.ts)
+    exportPageHeader: "页面",
+    exportTags: "标签",
+    exportReplies: "回复",
+    // background/index.ts – context menu on links
+    contextMenuCopyLinkName: "复制链接名称"
   },
   en: {
     // SelectionToolbar
@@ -233,6 +293,17 @@ const translations = {
     undo: "Undo",
     resolve: "Resolve",
     edit: "Edit",
+    mdBold: "Bold",
+    mdItalic: "Italic",
+    mdStrikethrough: "Strikethrough",
+    mdHeading: "Heading",
+    mdBulletList: "Bullet list",
+    mdOrderedList: "Numbered list",
+    mdQuote: "Quote",
+    mdInlineCode: "Inline code",
+    mdCodeBlock: "Code block",
+    mdLink: "Link",
+    mdDivider: "Divider",
     addCommentMarkdown: "Add a comment (full Markdown supported)",
     send: "Send",
     addCommentBtn: "Add comment",
@@ -250,6 +321,34 @@ const translations = {
     // sidepanel.tsx
     untitledPage: "Untitled Page",
     unselectedPage: "No page selected",
+    tabNotes: "Notes",
+    tabCategories: "Categories",
+    tabSettings: "Settings",
+    categories: "Categories",
+    pageCategory: "Page category",
+    catAuto: "Automatic",
+    catNone: "None",
+    catAutoHint: "This page has no matching automatic rule yet.",
+    catNoneHint: "This page is excluded from automatic rules.",
+    catManualHint: (name: string) => `Manually assigned to “${name}”`,
+    catAutoMatched: (name: string) => `Matched an automatic rule and assigned to “${name}”`,
+    manageCategories: "Manage categories",
+    catName: "Name",
+    catColor: "Color",
+    catIcon: "Icon",
+    catAutoRule: "Automatic rule",
+    catRuleNone: "No automatic rule",
+    catRuleHasAnnotations: "When it has annotations",
+    catRuleHasComments: "When it has note content",
+    addCategory: "Add category",
+    catAnnotatedCount: (n: number) => `${n} annotation${n !== 1 ? "s" : ""} on this page`,
+    catUntitled: "Untitled category",
+    catEmptyHint: "No categories yet. Add one below.",
+    catQuickClassify: "Bookmark category",
+    catSuggested: "Suggested",
+    catApply: "Apply",
+    catClear: "Clear",
+    catUnspecified: "Unspecified",
     openDashboard: "Open Dashboard",
     unbookmark: "Remove bookmark",
     bookmark: "Bookmark this page",
@@ -275,7 +374,7 @@ const translations = {
     pageNoteCount: (n: number) => `${n} note${n !== 1 ? "s" : ""} on this page`,
     exportBtn: "📤 Export",
     importBtn: "📥 Import",
-    addTag: "＋ Tag",
+    addTag: "+ Tag",
     cannotCommunicate: "Cannot communicate with page. Please refresh and try again.",
     invalidImportError: "Invalid file format: cannot recognize valid annotation data",
     importConfirm: "Import will overwrite all current data. Continue?",
@@ -297,7 +396,7 @@ const translations = {
     folderCount: (n: number) => `${n} folder${n !== 1 ? "s" : ""}`,
     searchPlaceholder: "Search notes, quotes, or comments...",
     tagLabel: "Tag:",
-    newFolder: "＋ New",
+    newFolder: "+ New",
     allBookmarksFolder: "📂 All Bookmarks",
     folderNamePlaceholder: "Folder name",
     rootDirectory: "Root",
@@ -308,6 +407,9 @@ const translations = {
     annotationsCount: (n: number) => `${n} annotation${n !== 1 ? "s" : ""}`,
     jump: "Jump",
     replyCount: (n: number) => `${n} repl${n !== 1 ? "ies" : "y"}`,
+    uncategorized: "Uncategorized",
+    categoryManual: "Manual",
+    categoryFilter: "Category filter:",
     foundAnnotations: (n: number) => `Found ${n} annotation${n !== 1 ? "s" : ""}`,
 
     // background/index.ts
@@ -367,7 +469,25 @@ const translations = {
     urlMustContainPlaceholder: "URL must contain %s or {POSTARGS}",
     resetConfirm: "Reset to default configuration?",
     seconds: "s",
-    languageLabel: "Language"
+    languageLabel: "Language",
+
+    // MarkdownEditor (adjustable height + live preview)
+    livePreview: "Live preview",
+    hidePreview: "Hide preview",
+    previewEmpty: "Rendered preview will appear here as you type",
+    resizeEditor: "Drag to resize the editor",
+    // ToolbarSettings.tsx
+    downloadIcon: "Download icon",
+    // author name used when creating annotations/replies
+    me: "Me",
+    // AnnotationMarker.tsx – “Comment by Alice” / “批注 · Alice”
+    annotationBy: (kind: string, name: string) => `${kind} by ${name}`,
+    // Markdown export (storage.ts)
+    exportPageHeader: "Page",
+    exportTags: "Tags",
+    exportReplies: "Replies",
+    // background/index.ts – context menu on links
+    contextMenuCopyLinkName: "Copy Link Name"
   }
 }
 
@@ -411,6 +531,17 @@ export interface TranslationKeys {
   resolve: string
   edit: string
   addCommentMarkdown: string
+  mdBold: string
+  mdItalic: string
+  mdStrikethrough: string
+  mdHeading: string
+  mdBulletList: string
+  mdOrderedList: string
+  mdQuote: string
+  mdInlineCode: string
+  mdCodeBlock: string
+  mdLink: string
+  mdDivider: string
   send: string
   addCommentBtn: string
   clickToJump: string
@@ -422,6 +553,34 @@ export interface TranslationKeys {
   // sidepanel
   untitledPage: string
   unselectedPage: string
+  tabNotes: string
+  tabCategories: string
+  tabSettings: string
+  categories: string
+  pageCategory: string
+  catAuto: string
+  catNone: string
+  catAutoHint: string
+  catNoneHint: string
+  catManualHint: (name: string) => string
+  catAutoMatched: (name: string) => string
+  manageCategories: string
+  catName: string
+  catColor: string
+  catIcon: string
+  catAutoRule: string
+  catRuleNone: string
+  catRuleHasAnnotations: string
+  catRuleHasComments: string
+  addCategory: string
+  catAnnotatedCount: (n: number) => string
+  catUntitled: string
+  catEmptyHint: string
+  catQuickClassify: string
+  catSuggested: string
+  catApply: string
+  catClear: string
+  catUnspecified: string
   openDashboard: string
   unbookmark: string
   bookmark: string
@@ -480,6 +639,9 @@ export interface TranslationKeys {
   jump: string
   replyCount: (n: number) => string
   foundAnnotations: (n: number) => string
+  uncategorized: string
+  categoryManual: string
+  categoryFilter: string
   // background
   contextMenuHighlight: string
   contextMenuUnderline: string
@@ -536,6 +698,23 @@ export interface TranslationKeys {
   resetConfirm: string
   seconds: string
   languageLabel: string
+  // MarkdownEditor (adjustable height + live preview)
+  livePreview: string
+  hidePreview: string
+  previewEmpty: string
+  resizeEditor: string
+  // ToolbarSettings.tsx
+  downloadIcon: string
+  // author name used when creating annotations/replies
+  me: string
+  // AnnotationMarker.tsx
+  annotationBy: (kind: string, name: string) => string
+  // Markdown export (storage.ts)
+  exportPageHeader: string
+  exportTags: string
+  exportReplies: string
+  // background/index.ts
+  contextMenuCopyLinkName: string
 }
 
 const typedTranslations: Record<Locale, TranslationKeys> = translations
@@ -545,7 +724,7 @@ let _currentLocale: Locale | null = null
 
 export function detectLocale(): Locale {
   if (_currentLocale) return _currentLocale
-  const lang = navigator.language || ""
+  const lang = (typeof navigator !== "undefined" && navigator.language) || ""
   return lang.startsWith("zh") ? "zh-CN" : "en"
 }
 
@@ -584,6 +763,20 @@ export async function setLocale(locale: Locale): Promise<void> {
  */
 export function getLocale(): Locale {
   return _currentLocale || detectLocale()
+}
+
+/**
+ * Resolve the locale from services (storage seeding, migration, ...).
+ * Reads the persisted preference once when it has not been initialized yet,
+ * so callers do not depend on a UI effect having run first.
+ */
+export async function ensureLocale(): Promise<Locale> {
+  if (_currentLocale) return _currentLocale
+  try {
+    return await initLocale()
+  } catch {
+    return detectLocale()
+  }
 }
 
 export function t(locale: Locale): TranslationKeys {
