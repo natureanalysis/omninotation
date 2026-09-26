@@ -14,6 +14,8 @@ const translations = {
     color: "颜色",
     defaultColor: "默认",
     customColor: "自定义",
+    recentColors: "最近使用",
+    opacity: "透明度",
     addComment: "添加批注",
     copy: "复制",
     copySuccess: "已复制",
@@ -307,6 +309,8 @@ const translations = {
     color: "Color",
     defaultColor: "Default",
     customColor: "Custom",
+    recentColors: "Recent",
+    opacity: "Opacity",
     addComment: "Add Note",
     copy: "Copy",
     copySuccess: "Copied",
@@ -601,6 +605,8 @@ export interface TranslationKeys {
   color: string
   defaultColor: string
   customColor: string
+  recentColors: string
+  opacity: string
   addComment: string
   commentPlaceholder: string
   back: string

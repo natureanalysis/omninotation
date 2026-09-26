@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import * as storage from "@/services/storage"
-import { COLOR_PRESETS, hexToRgba } from "@/services/color"
+import { COLOR_PRESETS, DEFAULT_ANNOTATION_COLOR, hexToRgba, parseRgba, rgbaToHex, sameRgb, withAlpha } from "@/services/color"
 import { detectLocale, t, type Locale } from "@/services/i18n"
 import type { Annotation, Reply } from "@/types"
 import { MarkdownContent } from "./MarkdownContent"
@@ -19,6 +19,8 @@ export function AnnotationCard({
   onEdit,
   onStatusToggle,
   onColorChange,
+  recentColors,
+  onColorUsed,
   autoEdit,
   draggable,
   isDragging,
@@ -42,6 +44,8 @@ export function AnnotationCard({
   onEdit: (annId: string, content: string) => void
   onStatusToggle: (annId: string) => void
   onColorChange?: (annId: string, color: string | undefined) => void
+  recentColors?: string[]
+  onColorUsed?: (color: string) => void
   autoEdit?: boolean
   draggable?: boolean
   isDragging?: boolean
@@ -72,6 +76,19 @@ export function AnnotationCard({
     }
   }, [autoEdit, ann.data.content])
   const [showColorPicker, setShowColorPicker] = useState(false)
+  const [alphaValue, setAlphaValue] = useState(0.3)
+
+  const openColorPicker = () => {
+    if (!showColorPicker) {
+      setAlphaValue(ann.data.color ? (parseRgba(ann.data.color)?.a ?? 0.3) : 0.3)
+    }
+    setShowColorPicker((v) => !v)
+  }
+
+  const applyColor = (color: string | undefined) => {
+    onColorChange?.(ann.id, color)
+  }
+
   const handleAddReply = async () => {
     if (!replyText.trim() || !url) return
     const reply: Reply = {
@@ -175,38 +192,99 @@ export function AnnotationCard({
           {onColorChange && (
             <div className="relative">
               <button
-                onClick={(e) => { e.stopPropagation(); setShowColorPicker((v) => !v) }}
-                className="text-xs text-gray-400 hover:text-gray-600"
+                onClick={(e) => { e.stopPropagation(); openColorPicker() }}
+                className={`flex h-5 w-5 items-center justify-center rounded-md text-xs transition-colors ${
+                  showColorPicker || ann.data.color
+                    ? "bg-blue-50 text-blue-500"
+                    : "text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                }`}
                 title={L.color}
               >
                 🎨
               </button>
               {showColorPicker && (
-                <div className="absolute right-0 top-5 z-20 bg-white border border-gray-200 rounded shadow-lg p-1 flex gap-1 items-center">
-                  {COLOR_PRESETS.map(({ c, cls }) => (
-                    <button
-                      key={c}
-                      onClick={(e) => { e.stopPropagation(); onColorChange(ann.id, c); setShowColorPicker(false) }}
-                      className={`w-4 h-4 rounded-full ${cls} border-2 ${ann.data.color === c ? "border-gray-800" : "border-transparent hover:border-gray-400"}`}
-                    />
-                  ))}
-                  <label
-                    className="relative w-4 h-4 rounded-full border-2 border-gray-300 hover:border-gray-500 cursor-pointer flex items-center justify-center overflow-hidden"
-                    title={L.customColor}
-                    onClick={(e) => e.stopPropagation()}
-                  >
+                <div
+                  className="absolute right-0 top-7 z-30 w-56 rounded-xl border border-slate-200 bg-white p-3 shadow-xl shadow-slate-300/40"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="mb-1.5 text-[10px] font-medium text-slate-400">{L.color}</div>
+                  <div className="mb-3 flex items-center gap-1.5">
+                    {COLOR_PRESETS.map(({ c, cls }) => (
+                      <button
+                        key={c}
+                        title={c}
+                        onClick={(e) => { e.stopPropagation(); applyColor(c); setShowColorPicker(false) }}
+                        className={`h-5 w-5 rounded-full ${cls} transition ${
+                          ann.data.color && sameRgb(ann.data.color, c)
+                            ? "ring-2 ring-blue-500 ring-offset-1"
+                            : "hover:scale-110"
+                        }`}
+                      />
+                    ))}
+                    <label
+                      className="relative flex h-5 w-5 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-dashed border-slate-300 text-slate-400 transition hover:border-blue-400 hover:text-blue-500"
+                      title={L.customColor}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="color"
+                        defaultValue={ann.data.color ? rgbaToHex(ann.data.color) : "#facc15"}
+                        className="absolute inset-0 cursor-pointer opacity-0"
+                        onInput={(e) => applyColor(hexToRgba((e.target as HTMLInputElement).value, alphaValue))}
+                        onBlur={(e) => {
+                          const hex = (e.target as HTMLInputElement).value
+                          onColorUsed?.(hexToRgba(hex, alphaValue))
+                        }}
+                      />
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                        <path d="M12 5v14M5 12h14" />
+                      </svg>
+                    </label>
+                  </div>
+
+                  {recentColors && recentColors.length > 0 && (
+                    <div className="mb-3">
+                      <div className="mb-1.5 text-[10px] font-medium text-slate-400">{L.recentColors}</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {recentColors.map((c) => (
+                          <button
+                            key={c}
+                            title={c}
+                            onClick={(e) => { e.stopPropagation(); applyColor(c); setShowColorPicker(false) }}
+                            className={`h-4 w-4 rounded-full border border-slate-200 transition ${
+                              ann.data.color === c ? "ring-2 ring-blue-500 ring-offset-1" : "hover:scale-110"
+                            }`}
+                            style={{ backgroundColor: rgbaToHex(c) }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mb-3">
+                    <div className="mb-1 flex items-center justify-between text-[10px] text-slate-400">
+                      <span>{L.opacity}</span>
+                      <span className="tabular-nums">{Math.round(alphaValue * 100)}%</span>
+                    </div>
                     <input
-                      type="color"
-                      className="absolute inset-0 opacity-0 cursor-pointer"
-                      onInput={(e) => onColorChange(ann.id, hexToRgba((e.target as HTMLInputElement).value))}
-                      onBlur={() => setShowColorPicker(false)}
+                      type="range"
+                      min={5}
+                      max={100}
+                      step={1}
+                      value={Math.round(alphaValue * 100)}
+                      onInput={(e) => {
+                        const a = Number((e.target as HTMLInputElement).value) / 100
+                        setAlphaValue(a)
+                        applyColor(withAlpha(ann.data.color || DEFAULT_ANNOTATION_COLOR, a))
+                      }}
+                      className="w-full cursor-pointer accent-blue-600"
                     />
-                    <span className="text-[8px] text-gray-500">+</span>
-                  </label>
+                  </div>
+
                   {ann.data.color && (
                     <button
-                      onClick={(e) => { e.stopPropagation(); onColorChange(ann.id, undefined); setShowColorPicker(false) }}
-                      className="text-[10px] text-gray-400 hover:text-gray-600 px-1"
+                      onClick={(e) => { e.stopPropagation(); applyColor(undefined); setShowColorPicker(false) }}
+                      className="w-full rounded-md border border-slate-200 py-1 text-[10px] text-slate-500 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
                     >
                       {L.defaultColor}
                     </button>

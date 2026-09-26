@@ -25,6 +25,78 @@ export function isPresetColor(color: string): boolean {
   return COLOR_PRESETS.some((p) => p.c === color)
 }
 
+export interface RgbaColor {
+  r: number
+  g: number
+  b: number
+  a: number
+}
+
+/**
+ * Parse a `#rgb` / `#rrggbb` / `rgb()` / `rgba()` string into RGBA components.
+ * Returns null when the value cannot be recognised.
+ */
+export function parseRgba(color: string): RgbaColor | null {
+  if (!color) return null
+  const value = color.trim()
+
+  if (value.startsWith("#")) {
+    const clean = value.slice(1)
+    if (clean.length === 3) {
+      return {
+        r: parseInt(clean[0] + clean[0], 16),
+        g: parseInt(clean[1] + clean[1], 16),
+        b: parseInt(clean[2] + clean[2], 16),
+        a: 1
+      }
+    }
+    if (clean.length >= 6) {
+      return {
+        r: parseInt(clean.slice(0, 2), 16),
+        g: parseInt(clean.slice(2, 4), 16),
+        b: parseInt(clean.slice(4, 6), 16),
+        a: 1
+      }
+    }
+    return null
+  }
+
+  const match = value.match(
+    /rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)/i
+  )
+  if (!match) return null
+  return {
+    r: Math.round(Number(match[1])),
+    g: Math.round(Number(match[2])),
+    b: Math.round(Number(match[3])),
+    a: match[4] !== undefined ? Number(match[4]) : 1
+  }
+}
+
+/** Convert any supported color string to a `#rrggbb` hex value (for `<input type="color">`). */
+export function rgbaToHex(color: string): string {
+  const parsed = parseRgba(color)
+  if (!parsed) return "#facc15"
+  const toHex = (n: number) => Math.max(0, Math.min(255, n)).toString(16).padStart(2, "0")
+  return `#${toHex(parsed.r)}${toHex(parsed.g)}${toHex(parsed.b)}`
+}
+
+/** Return a copy of the color with a new alpha channel, keeping RGB untouched. */
+export function withAlpha(color: string, alpha: number): string {
+  const parsed = parseRgba(color)
+  if (!parsed) return color
+  const a = Math.max(0, Math.min(1, alpha))
+  return `rgba(${parsed.r}, ${parsed.g}, ${parsed.b}, ${a})`
+}
+
+/** Compare two colors ignoring their alpha channel. */
+export function sameRgb(a: string, b: string): boolean {
+  const pa = parseRgba(a)
+  const pb = parseRgba(b)
+  if (!pa || !pb) return false
+  return pa.r === pb.r && pa.g === pb.g && pa.b === pb.b
+}
+
 // ========================
 // Dark mode adaptation
 // ========================

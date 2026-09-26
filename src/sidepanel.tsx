@@ -39,6 +39,7 @@ export default function SidePanel() {
   const [pendingEditIds, setPendingEditIds] = useState<Set<string>>(new Set())
   const [searchQuery, setSearchQuery] = useState("")
   const [bookmarkTags, setBookmarkTags] = useState<string[]>([])
+  const [recentColors, setRecentColors] = useState<string[]>([])
   const [pageCategories, setPageCategories] = useState<ReturnType<typeof storage.getDefaultPageCategories>>([])
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
   const [suggestedCategoryId, setSuggestedCategoryId] = useState<string | null>(null)
@@ -156,6 +157,7 @@ export default function SidePanel() {
         setBookmarked(!!currentBm)
         setBookmarkTime(currentBm?.createdAt || null)
         setBookmarkTags(currentBm?.tags || [])
+        setRecentColors(await storage.getRecentColors())
         setSelectedCategoryId(currentBm?.categoryId ?? null)
         const categories = await storage.getPageCategories()
         setPageCategories(categories)
@@ -375,6 +377,12 @@ export default function SidePanel() {
     setAnnotations(updater)
     setDisplayAnnotations(updater)
   }, [url])
+
+  const handleColorUsed = useCallback(async (color: string) => {
+    if (!color) return
+    const next = await storage.addRecentColor(color)
+    setRecentColors(next)
+  }, [])
 
   const handleBookmarkTagAdd = async () => {
     const trimmed = tagInput.trim()
@@ -927,6 +935,8 @@ export default function SidePanel() {
             onEdit={handleEditAnnotation}
             onStatusToggle={handleStatusToggle}
             onColorChange={handleAnnotationColorChange}
+            recentColors={recentColors}
+            onColorUsed={handleColorUsed}
             autoEdit={pendingEditIds.has(ann.id)}
             draggable
             isDragging={draggingId === ann.id}

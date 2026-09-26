@@ -253,6 +253,25 @@ export async function updateAnnotationColor(url: string, annotationId: string, c
   await safeSet({ [key]: annotations })
 }
 
+const RECENT_COLORS_KEY = "recent_annotation_colors"
+const RECENT_COLORS_LIMIT = 8
+
+/** 读取最近使用的批注颜色（最新的在前）。 */
+export async function getRecentColors(): Promise<string[]> {
+  const data = await safeGet(RECENT_COLORS_KEY)
+  const value = data[RECENT_COLORS_KEY]
+  return Array.isArray(value) ? value : []
+}
+
+/** 记录一个最近使用的颜色并返回更新后的列表。 */
+export async function addRecentColor(color: string): Promise<string[]> {
+  const existing = await getRecentColors()
+  if (!color) return existing
+  const next = [color, ...existing.filter((c) => c !== color)].slice(0, RECENT_COLORS_LIMIT)
+  await safeSet({ [RECENT_COLORS_KEY]: next })
+  return next
+}
+
 export async function clearAnnotations(url: string): Promise<void> {
   const key = getKey(url)
   await safeRemove(key)
