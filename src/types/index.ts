@@ -47,6 +47,20 @@ export interface Annotation {
   createdAt: string
   updatedAt?: string
   replies?: Reply[]
+  /** 来自 Axiom Hub 的远程批注标识（本地自建批注无此字段）。 */
+  origin?: AnnotationOrigin
+}
+
+/** 远程批注来源（见 hub-share-plan §3.3 同步语义）。 */
+export interface AnnotationOrigin {
+  /** Hub 页面 id（hub_web_pages.page_id）。 */
+  pageId: string
+  /** Hub 分享者 user_id。 */
+  authorId: string
+  /** Hub 端内容哈希（content_hash 变更检测）。 */
+  contentHash?: string
+  /** 本地 fork：用户改过内容/颜色/状态后，远端更新不再覆盖。 */
+  forked?: boolean
 }
 
 export interface AnnotationEntry {

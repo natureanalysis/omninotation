@@ -1,13 +1,16 @@
 /**
  * Axiom Hub 客户端。
  *
- * 对接 axiom-hub 后端（Rust/axum）的鉴权与分享接口：
- *   - POST /api/auth/login     登录（返回 access JWT + refresh token）
- *   - POST /api/auth/register  注册
- *   - POST /api/auth/refresh   refresh 旋转续期
- *   - POST /api/auth/logout    吊销会话
- *   - GET  /api/auth/me        当前用户
- *   - POST /api/shares         上传分享（multipart：title/description/visibility/item_snapshot/annotations）
+ * 对接 axiom-hub 后端（Rust/axum）的鉴权与网页批注分享接口：
+ *   - POST /api/auth/login              登录（返回 access JWT + refresh token）
+ *   - POST /api/auth/register           注册
+ *   - POST /api/auth/refresh            refresh 旋转续期
+ *   - POST /api/auth/logout             吊销会话
+ *   - GET  /api/auth/me                 当前用户
+ *   - POST /api/webpages                创建/整页覆盖分享（multipart，幂等键 (owner, url_hash)）
+ *   - DELETE /api/webpages/:id          撤回分享
+ *   - GET  /api/webpages/subscriptions  插件拉取口（我接收的页面 + 全部批注）
+ *   - GET  /api/webpages/:id/comments   页面评论（同步到本地作只读展示）
  *
  * 合规要点（对齐 Chrome Web Store 政策）：
  *   - 凭据只存 chrome.storage.local（MV3 service worker 无 localStorage），不明文落盘密码；
@@ -28,6 +31,10 @@ const HUB_BASE_KEY = "hub_base_url"
 const HUB_ACCESS_KEY = "hub_access_token"
 const HUB_REFRESH_KEY = "hub_refresh_token"
 const HUB_USER_KEY = "hub_user"
+const HUB_SYNC_CURSOR_KEY = "hub_sync_since"
+
+/** 视口截图上限（与 hub 端 `webpages.rs::MAX_SNAPSHOT_BYTES` 一致）。 */
+export const MAX_SNAPSHOT_BYTES = 2 * 1024 * 1024
 
 /** axiom-hub `PublicUser`（见 src/auth.rs）。 */
 export interface HubUser {
@@ -47,54 +54,23 @@ export interface HubAuthResponse {
   user: HubUser
 }
 
-export type HubVisibility = "public" | "link" | "followers" | "direct"
-
-/** 解析用户输入的收件人（逗号/分号/换行分隔），去空去重。 */
-export function parseRecipients(raw: string): string[] {
-  const seen = new Set<string>()
-  const out: string[] = []
-  for (const part of raw.split(/[\n,，;；]/)) {
-    const name = part.trim()
-    if (name && !seen.has(name)) {
-      seen.add(name)
-      out.push(name)
-    }
-  }
-  return out
-}
-
-export interface HubShareInput {
-  title: string
-  description?: string
-  visibility: HubVisibility
-  /** 批注数组，原样序列化为 `annotations` 字段（服务端存任意 JSON）。 */
-  annotations: Annotation[]
-  /** 页面/条目快照，序列化为 `item_snapshot` 字段。 */
-  itemSnapshot: Record<string, unknown>
-  /** 定向分享（visibility=direct）的收件人，用户名或 user_id。 */
-  recipients?: string[]
-  /** 是否同时附带一份由批注生成的 Markdown 文件（作为 `files[]` 上传）。 */
-  attachMarkdown?: boolean
-}
-
-export interface HubShareResult {
-  share_id: string
-}
-
-/** 本地保存的一条分享记录（用于「我的分享」列表与删除）。 */
-export interface HubShareRecord {
-  shareId: string
-  title: string
-  url: string
-  visibility: HubVisibility
-  createdAt: string
-  link: string
-}
+export type HubVisibility = "public" | "link" | "followers"
 
 export interface HubSession {
   accessToken: string
   refreshToken: string
   user: HubUser | null
+}
+
+/** 本地保存的一条分享记录（用于「我的分享」列表与删除）。 */
+export interface HubShareRecord {
+  /** Hub 页面 id（`hub_web_pages.page_id`）。 */
+  pageId: string
+  title: string
+  url: string
+  visibility: HubVisibility
+  createdAt: string
+  link: string
 }
 
 /** 带 HTTP 状态码的 Hub 错误，便于 UI 区分 401/402/403 等。 */
@@ -282,7 +258,7 @@ async function refreshAccessToken(): Promise<string | null> {
   return refreshInFlight
 }
 
-/** 带 Bearer 的请求；401 时静默续期并重试一次。 */
+/** 带 Bearer 的请求；401 时静默续期并重试一次（MV3 唤醒后 token 可能已过期）。 */
 async function authFetch(path: string, init: RequestInit = {}, allowRetry = true): Promise<Response> {
   const base = await getHubBaseUrl()
   const session = await getHubSession()
@@ -365,111 +341,202 @@ export async function hubMe(): Promise<HubUser | null> {
 }
 
 // ========================
-// 分享
+// 网页批注分享（POST /api/webpages）
 // ========================
 
-function renderRepliesMd(replies: Reply[], depth: number): string[] {
-  const out: string[] = []
-  const indent = "  ".repeat(depth)
-  for (const r of replies) {
-    out.push(`${indent}- ${r.author?.name || "Anonymous"}: ${r.content}`)
-    if (r.replies?.length) out.push(...renderRepliesMd(r.replies, depth + 1))
+export interface HubWebPageInput {
+  /** 原始页面 URL（Hub 端负责归一化为幂等键 url_hash）。 */
+  url: string
+  title: string
+  visibility: HubVisibility
+  annotations: Annotation[]
+  /** 分享时生成的 Markdown 摘要（Hub 详情页展示用）。 */
+  summaryMd?: string
+  /** 可选视口截图的 data URL（captureVisibleTab 产物，png/jpeg）。 */
+  snapshotDataUrl?: string
+}
+
+export interface HubWebPageResult {
+  page_id: string
+}
+
+/** 剥离上传批注里的本地态字段：评论归 Hub、origin 是接收端标记，均不应外发。 */
+export function stripLocalAnnotationFields(ann: Annotation): Annotation {
+  const { replies: _replies, origin: _origin, ...rest } = ann
+  return rest
+}
+
+/** data URL → Blob（截图走 multipart `snapshot` 字段上传）。 */
+export async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
+  const res = await fetch(dataUrl)
+  return res.blob()
+}
+
+export async function hubCreateWebPage(input: HubWebPageInput): Promise<HubWebPageResult> {
+  const title = input.title.trim().slice(0, 300) || "OmniNotation"
+  const fd = new FormData()
+  fd.append("url", input.url)
+  fd.append("title", title)
+  fd.append("visibility", input.visibility)
+  if (input.summaryMd) fd.append("summary_md", input.summaryMd)
+  fd.append("annotations", JSON.stringify(input.annotations.map(stripLocalAnnotationFields)))
+  if (input.snapshotDataUrl) {
+    const blob = await dataUrlToBlob(input.snapshotDataUrl)
+    if (blob.size > 0 && blob.size <= MAX_SNAPSHOT_BYTES) {
+      fd.append("snapshot", blob, "snapshot.jpeg")
+    }
+  }
+  // 不显式设置 Content-Type，交给浏览器补 multipart boundary
+  const res = await authFetch("/api/webpages", { method: "POST", body: fd })
+  if (!res.ok) throw new HubApiError(res.status, await readErrorMessage(res))
+  return (await res.json()) as HubWebPageResult
+}
+
+/** 撤回一个网页分享（仅属主可删，服务端回收截图配额并级联清理）。 */
+export async function hubDeleteWebPage(pageId: string): Promise<void> {
+  const res = await authFetch(`/api/webpages/${encodeURIComponent(pageId)}`, { method: "DELETE" })
+  if (!res.ok) throw new HubApiError(res.status, await readErrorMessage(res))
+}
+
+/** 网页分享详情页链接（Hub 前端为 hash 路由 `#/webpage/:id`）。 */
+export async function hubWebPageUrl(pageId: string): Promise<string> {
+  const base = await getHubBaseUrl()
+  return `${base}/#/webpage/${pageId}`
+}
+
+// ========================
+// Markdown 摘要（分享物料，Hub 详情页展示）
+// ========================
+
+function countRepliesRecursive(replies: Reply[]): number {
+  return replies.reduce((sum, r) => sum + 1 + (r.replies ? countRepliesRecursive(r.replies) : 0), 0)
+}
+
+/**
+ * 由页面批注生成 Markdown 摘要（分享时上传为 `summary_md`）。
+ * 刻意不依赖 UI/i18n，保证纯函数、可单测。
+ */
+export function buildPageSummaryMarkdown(input: {
+  title: string
+  url: string
+  authorName: string
+  annotations: Annotation[]
+}): string {
+  const lines: string[] = []
+  const date = new Date().toISOString().slice(0, 10)
+  lines.push(`# ${input.title}`)
+  lines.push("")
+  lines.push(`> ${input.url} · ${input.annotations.length} 条批注 · ${input.authorName} · ${date}`)
+  lines.push("")
+  input.annotations.forEach((ann, i) => {
+    const firstLine =
+      ann.data.content.trim().split("\n")[0] ||
+      (ann.data.type === "edit" ? "Edit" : "Comment")
+    lines.push(`## ${i + 1}. ${firstLine}`)
+    lines.push("")
+    if (ann.quote) {
+      const quote = ann.quote.replace(/\s+/g, " ").trim()
+      const truncated = quote.length > 200 ? `${quote.slice(0, 200)}…` : quote
+      lines.push(`> "${truncated}"`)
+      lines.push("")
+    }
+    if (ann.replies?.length) {
+      lines.push(`（回复 ${countRepliesRecursive(ann.replies)} 条 → Hub 查看）`)
+      lines.push("")
+    }
+  })
+  return lines.join("\n")
+}
+
+// ========================
+// 接收：订阅拉取（GET /api/webpages/subscriptions）
+// ========================
+
+/** Hub 下发的一条批注（`WebAnnotationOut`）。`annotation` 与插件 Annotation 同构。 */
+export interface HubRemoteAnnotation {
+  annotation_id: string
+  author_id: string
+  author_name: string
+  annotation: Annotation
+  content_hash: string
+}
+
+/** 拉取口返回的一个页面（`WebPageSubscriptionItem`）。 */
+export interface HubWebPageSubscription {
+  page_id: string
+  url: string
+  title: string
+  owner_username: string
+  accepted_at: string
+  updated_at: string
+  annotations: HubRemoteAnnotation[]
+}
+
+export interface HubWebPageSubscriptionFeed {
+  pages: HubWebPageSubscription[]
+  /** 本次响应计算的「下次 since」游标（RFC3339）。 */
+  now: string
+}
+
+/** 拉取我接收的页面与全部批注；`since`（RFC3339）缺省 = 全量。 */
+export async function hubPullSubscriptions(since?: string): Promise<HubWebPageSubscriptionFeed> {
+  const qs = since ? `?since=${encodeURIComponent(since)}` : ""
+  const res = await authFetch(`/api/webpages/subscriptions${qs}`)
+  if (!res.ok) throw new HubApiError(res.status, await readErrorMessage(res))
+  return (await res.json()) as HubWebPageSubscriptionFeed
+}
+
+/** Hub 页面评论（`WebPageCommentOut`）；`annotation_id` 为 null = 对整页。 */
+export interface HubWebPageComment {
+  comment_id: number
+  annotation_id: string | null
+  user_id: string
+  username: string
+  content: string
+  created_at: string
+}
+
+export async function hubListWebPageComments(pageId: string): Promise<HubWebPageComment[]> {
+  const res = await authFetch(`/api/webpages/${encodeURIComponent(pageId)}/comments`)
+  if (!res.ok) throw new HubApiError(res.status, await readErrorMessage(res))
+  return (await res.json()) as HubWebPageComment[]
+}
+
+/** Hub 评论落库时间是 SQLite `datetime('now')`（UTC、空格分隔），折算成 ISO。 */
+function hubTimeToIso(value: string): string {
+  if (value.includes("T")) return value
+  const isoish = value.replace(" ", "T")
+  const d = new Date(`${isoish}Z`)
+  return Number.isNaN(d.getTime()) ? value : d.toISOString()
+}
+
+/**
+ * 把 Hub 评论按 `annotation_id` 分组成只读 `Reply[]`（页面级评论不落批注卡片）。
+ */
+export function groupHubComments(comments: HubWebPageComment[]): Record<string, Reply[]> {
+  const out: Record<string, Reply[]> = {}
+  for (const c of comments) {
+    if (!c.annotation_id) continue
+    const list = out[c.annotation_id] ?? []
+    list.push({
+      id: `hub-comment-${c.comment_id}`,
+      content: c.content,
+      author: { id: `hub:${c.user_id}`, name: c.username },
+      createdAt: hubTimeToIso(c.created_at)
+    })
+    out[c.annotation_id] = list
   }
   return out
 }
 
-/**
- * 把一批批注渲染为独立 Markdown 文本（分享时可作为附件上传）。
- * 刻意不依赖 UI/i18n，保证纯函数、可单测。
- */
-export function buildShareMarkdown(input: {
-  title: string
-  url: string
-  annotations: Annotation[]
-}): string {
-  const lines: string[] = []
-  lines.push(`# ${input.title}`)
-  lines.push("")
-  if (input.url) lines.push(`- URL: ${input.url}`)
-  lines.push(`- Exported: ${new Date().toISOString()}`)
-  lines.push(`- Annotations: ${input.annotations.length}`)
-  lines.push("")
-  lines.push("---")
-  lines.push("")
-
-  for (const ann of input.annotations) {
-    const kind = ann.data.type === "edit" ? "Edit" : "Comment"
-    const style = ann.data.markStyle ? ` (${ann.data.markStyle})` : ""
-    const resolved = ann.status === "resolved" ? " [resolved]" : ""
-    lines.push(`## ${kind}${style}${resolved}`)
-    lines.push("")
-    if (ann.quote) {
-      lines.push(ann.quote.split("\n").map((line) => `> ${line}`).join("\n"))
-      lines.push("")
-    }
-    if (ann.data.content) {
-      lines.push(ann.data.content)
-      lines.push("")
-    }
-    if (ann.author?.name) {
-      lines.push(`— ${ann.author.name}, ${ann.createdAt}`)
-      lines.push("")
-    }
-    if (ann.replies?.length) {
-      lines.push("Replies:")
-      lines.push("")
-      lines.push(...renderRepliesMd(ann.replies, 0))
-      lines.push("")
-    }
-    lines.push("---")
-    lines.push("")
-  }
-
-  return lines.join("\n")
+/** 增量拉取游标（MV3 service worker 会被杀，必须落盘）。 */
+export async function getHubSyncCursor(): Promise<string | null> {
+  const result = await storageGet(HUB_SYNC_CURSOR_KEY)
+  return (result[HUB_SYNC_CURSOR_KEY] as string | undefined) ?? null
 }
 
-/** 由标题派生一个安全的 `.md` 附件名（服务端白名单含 md）。 */
-export function shareMarkdownFileName(title: string): string {
-  const base = (title || "omninotation")
-    .replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 60)
-  return `${base || "omninotation"}-annotations.md`
-}
-
-export async function hubCreateShare(input: HubShareInput): Promise<HubShareResult> {
-  const title = input.title.trim().slice(0, 200) || "OmniNotation"
-  const fd = new FormData()
-  fd.append("title", title)
-  if (input.description?.trim()) fd.append("description", input.description.trim())
-  fd.append("visibility", input.visibility)
-  fd.append("item_snapshot", JSON.stringify(input.itemSnapshot))
-  fd.append("annotations", JSON.stringify(input.annotations))
-  for (const r of input.recipients ?? []) {
-    if (r.trim()) fd.append("recipients", r.trim())
-  }
-  if (input.attachMarkdown && input.annotations.length > 0) {
-    const pageUrl = typeof input.itemSnapshot.url === "string" ? input.itemSnapshot.url : ""
-    const markdown = buildShareMarkdown({ title, url: pageUrl, annotations: input.annotations })
-    const fileName = shareMarkdownFileName(title)
-    fd.append("files", new File([markdown], fileName, { type: "text/markdown" }), fileName)
-  }
-  // 不显式设置 Content-Type，交给浏览器补 multipart boundary
-  const res = await authFetch("/api/shares", { method: "POST", body: fd })
-  if (!res.ok) throw new HubApiError(res.status, await readErrorMessage(res))
-  return (await res.json()) as HubShareResult
-}
-
-/** 分享详情页链接（Hub 前端为 hash 路由 `#/share/:id`）。 */
-export async function hubShareUrl(shareId: string): Promise<string> {
-  const base = await getHubBaseUrl()
-  return `${base}/#/share/${shareId}`
-}
-/** 删除一个分享（仅属主可删，服务端会回收配额并清理 blob）。 */
-export async function hubDeleteShare(shareId: string): Promise<void> {
-  const res = await authFetch(`/api/shares/${encodeURIComponent(shareId)}`, { method: "DELETE" })
-  if (!res.ok) throw new HubApiError(res.status, await readErrorMessage(res))
+export async function setHubSyncCursor(rfc3339: string): Promise<void> {
+  await storageSet({ [HUB_SYNC_CURSOR_KEY]: rfc3339 })
 }
 
 // ========================
@@ -481,20 +548,26 @@ const MAX_SHARE_HISTORY = 100
 
 export async function getShareHistory(): Promise<HubShareRecord[]> {
   const result = await storageGet(HUB_SHARE_HISTORY_KEY)
-  const list = result[HUB_SHARE_HISTORY_KEY] as HubShareRecord[] | undefined
-  return Array.isArray(list) ? list : []
+  const list = result[HUB_SHARE_HISTORY_KEY] as any[] | undefined
+  if (!Array.isArray(list)) return []
+  // 兼容旧版 /api/shares 记录（shareId 字段）→ 统一映射为 pageId
+  return list.map((r) =>
+    r && typeof r === "object" && "shareId" in r && !("pageId" in r)
+      ? { ...r, pageId: String(r.shareId) }
+      : r
+  ) as HubShareRecord[]
 }
 
 export async function addShareRecord(record: HubShareRecord): Promise<void> {
   const list = await getShareHistory()
-  const next = [record, ...list.filter((r) => r.shareId !== record.shareId)].slice(
+  const next = [record, ...list.filter((r) => r.pageId !== record.pageId)].slice(
     0,
     MAX_SHARE_HISTORY
   )
   await storageSet({ [HUB_SHARE_HISTORY_KEY]: next })
 }
 
-export async function removeShareRecord(shareId: string): Promise<void> {
+export async function removeShareRecord(pageId: string): Promise<void> {
   const list = await getShareHistory()
-  await storageSet({ [HUB_SHARE_HISTORY_KEY]: list.filter((r) => r.shareId !== shareId) })
+  await storageSet({ [HUB_SHARE_HISTORY_KEY]: list.filter((r) => r.pageId !== pageId) })
 }

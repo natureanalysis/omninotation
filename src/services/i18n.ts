@@ -66,13 +66,8 @@ const translations = {
     mdDivider: "分隔线",
     addCommentMarkdown: "添加评论（支持完整 Markdown）",
     send: "发送",
-    addCommentBtn: "添加评论",
     clickToJump: "点击跳转到网页对应位置",
-    reply: "回复",
-
-    // ReplyThread
     anonymous: "匿名",
-    replyPlaceholder: "回复这条评论...",
 
     // omninotation.tsx
     extensionReloaded: "扩展已重新加载，请刷新页面以继续使用。",
@@ -277,23 +272,33 @@ const translations = {
     hubVisPublic: "公开",
     hubVisLink: "持链接可见",
     hubVisFollowers: "关注者",
-    hubShareDescription: "描述（可选）",
+    hubSharePickAnnotations: "选择要分享的批注",
+    hubShareSelectAll: "全选",
+    hubShareDeselectAll: "全不选",
+    hubShareSelectedCount: (n: number, total: number) => `已选 ${n}/${total} 条`,
+    hubShareUntitledAnnotation: "（无内容批注）",
+    hubShareWithSnapshot: "附带页面截图",
+    hubSnapshotUnavailable: "截图捕获失败，已按纯文本分享",
     hubShareSubmit: "分享",
     hubSharing: "分享中…",
     hubShareSuccess: "分享成功",
     hubShareFailed: (msg: string) => `分享失败：${msg}`,
-    hubShareEmpty: "没有可分享的批注",
     hubOpenShare: "打开分享",
     hubCopyShareLink: "复制链接",
     hubClose: "关闭",
+    hubRemoteBadge: "Hub",
+    hubRemoteBadgeTitle: "来自 Axiom Hub 的远程批注",
+    hubSyncNow: "同步接收的批注",
+    hubSyncNowTitle: "立即拉取我接收的网页批注",
+    hubSyncing: "同步中…",
+    hubSyncDone: "同步完成",
+    hubSyncFailed: (msg: string) => `同步失败：${msg}`,
+    authorFilterAll: "所有人",
+    authorFilterMine: "我",
+    authorFilterTitle: "按作者筛选",
 
     // Axiom Hub（隐私入口 / 分享增强）
     hubPrivacyPolicy: "隐私政策",
-    hubVisDirect: "定向",
-    hubShareRecipients: "收件人",
-    hubShareRecipientsPlaceholder: "用户名，用逗号或换行分隔",
-    hubShareRecipientsRequired: "请至少填写一个收件人",
-    hubShareAttachMarkdown: "同时附带 Markdown 文件",
     hubMyShares: "我的分享",
     hubNoShares: "暂无分享记录",
     hubDeleteShare: "删除",
@@ -361,13 +366,8 @@ const translations = {
     mdDivider: "Divider",
     addCommentMarkdown: "Add a comment (full Markdown supported)",
     send: "Send",
-    addCommentBtn: "Add comment",
     clickToJump: "Click to jump to the highlighted position",
-    reply: "Reply",
-
-    // ReplyThread
     anonymous: "Anonymous",
-    replyPlaceholder: "Reply to this comment...",
 
     // omninotation.tsx
     extensionReloaded: "Extension has been reloaded. Please refresh the page to continue.",
@@ -572,23 +572,33 @@ const translations = {
     hubVisPublic: "Public",
     hubVisLink: "Anyone with the link",
     hubVisFollowers: "Followers",
-    hubShareDescription: "Description (optional)",
+    hubSharePickAnnotations: "Choose annotations to share",
+    hubShareSelectAll: "Select all",
+    hubShareDeselectAll: "Deselect all",
+    hubShareSelectedCount: (n: number, total: number) => `${n}/${total} selected`,
+    hubShareUntitledAnnotation: "(empty annotation)",
+    hubShareWithSnapshot: "Attach page screenshot",
+    hubSnapshotUnavailable: "Screenshot unavailable, shared as text only",
     hubShareSubmit: "Share",
     hubSharing: "Sharing…",
     hubShareSuccess: "Shared",
     hubShareFailed: (msg: string) => `Share failed: ${msg}`,
-    hubShareEmpty: "No annotations to share",
     hubOpenShare: "Open share",
     hubCopyShareLink: "Copy link",
     hubClose: "Close",
+    hubRemoteBadge: "Hub",
+    hubRemoteBadgeTitle: "Received from Axiom Hub",
+    hubSyncNow: "Sync received annotations",
+    hubSyncNowTitle: "Pull annotations from pages I accepted",
+    hubSyncing: "Syncing…",
+    hubSyncDone: "Sync complete",
+    hubSyncFailed: (msg: string) => `Sync failed: ${msg}`,
+    authorFilterAll: "Everyone",
+    authorFilterMine: "Me",
+    authorFilterTitle: "Filter by author",
 
     // Axiom Hub (privacy entry / share enhancements)
     hubPrivacyPolicy: "Privacy policy",
-    hubVisDirect: "Direct",
-    hubShareRecipients: "Recipients",
-    hubShareRecipientsPlaceholder: "Usernames, separated by comma or newline",
-    hubShareRecipientsRequired: "Enter at least one recipient",
-    hubShareAttachMarkdown: "Also attach a Markdown file",
     hubMyShares: "My shares",
     hubNoShares: "No shares yet",
     hubDeleteShare: "Delete",
@@ -651,11 +661,8 @@ export interface TranslationKeys {
   mdLink: string
   mdDivider: string
   send: string
-  addCommentBtn: string
   clickToJump: string
-  reply: string
   anonymous: string
-  replyPlaceholder: string
   extensionReloaded: string
   stickyModeTooltip: string
   // sidepanel
@@ -851,21 +858,31 @@ export interface TranslationKeys {
   hubVisPublic: string
   hubVisLink: string
   hubVisFollowers: string
-  hubShareDescription: string
+  hubSharePickAnnotations: string
+  hubShareSelectAll: string
+  hubShareDeselectAll: string
+  hubShareSelectedCount: (n: number, total: number) => string
+  hubShareUntitledAnnotation: string
+  hubShareWithSnapshot: string
+  hubSnapshotUnavailable: string
   hubShareSubmit: string
   hubSharing: string
   hubShareSuccess: string
   hubShareFailed: (msg: string) => string
-  hubShareEmpty: string
   hubOpenShare: string
   hubCopyShareLink: string
   hubClose: string
+  hubRemoteBadge: string
+  hubRemoteBadgeTitle: string
+  hubSyncNow: string
+  hubSyncNowTitle: string
+  hubSyncing: string
+  hubSyncDone: string
+  hubSyncFailed: (msg: string) => string
+  authorFilterAll: string
+  authorFilterMine: string
+  authorFilterTitle: string
   hubPrivacyPolicy: string
-  hubVisDirect: string
-  hubShareRecipients: string
-  hubShareRecipientsPlaceholder: string
-  hubShareRecipientsRequired: string
-  hubShareAttachMarkdown: string
   hubMyShares: string
   hubNoShares: string
   hubDeleteShare: string

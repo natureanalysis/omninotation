@@ -3,8 +3,9 @@ import "katex/dist/katex.min.css"
 import "./style.css"
 
 import { initLocale, setLocale, t, getLocale, type Locale } from "@/services/i18n"
+import * as hub from "@/services/hub"
 import * as storage from "@/services/storage"
-import type { Annotation, Reply } from "@/types"
+import type { Annotation } from "@/types"
 import { AnnotationCard } from "@/components/AnnotationCard"
 import { CategoryPanel } from "@/components/CategoryPanel"
 import { HubAccount } from "@/components/HubAccount"
@@ -46,6 +47,8 @@ export default function SidePanel() {
   const [showTagInput, setShowTagInput] = useState(false)
   const [tagInput, setTagInput] = useState("")
   const [shareTarget, setShareTarget] = useState<Annotation[] | null>(null)
+  const [myHubUserId, setMyHubUserId] = useState<string | null>(null)
+  const [authorFilter, setAuthorFilter] = useState<string>("all")
   const listRef = useRef<HTMLDivElement>(null)
   const pendingEditIdsRef = useRef<Set<string>>(new Set())
   const annotationsRef = useRef<Annotation[]>([])
@@ -163,6 +166,8 @@ export default function SidePanel() {
         setPageCategories(categories)
         const suggested = await storage.getSuggestedPageCategory(pageUrl, pageTitle)
         setSuggestedCategoryId(suggested?.id ?? null)
+        const hubUser = await hub.getHubUser()
+        setMyHubUserId(hubUser?.user_id ?? null)
         if (!currentBm?.categoryId && suggested && categories.some((c) => c.id === suggested.id)) {
           setSelectedCategoryId(suggested.id)
         }
@@ -283,6 +288,8 @@ export default function SidePanel() {
   }, [url, scrollToAnnotation])
 
   const handleDelete = useCallback(async (id: string) => {
+    // 远程批注（Hub 同步）删除 → 写 tombstone，防止下次拉取复活
+    const target = annotations.find((a) => a.id === id)
     // Optimistically update UI state immediately to avoid async re-render issues
     const nextAnns = annotations.filter((a) => a.id !== id)
     setAnnotations(nextAnns)
@@ -298,50 +305,36 @@ export default function SidePanel() {
       await storage.saveAnnotationOrder(url, nextOrder)
     }
     await storage.deleteAnnotation(url, id)
+    if (target?.origin) await storage.addRemoteTombstone(url, id)
   }, [url, customOrder, annotations])
 
-  const handleReplyAdded = useCallback((annId: string, reply: Reply) => {
-    const updater = (prev: Annotation[]) =>
-      prev.map((a) =>
-        a.id === annId ? { ...a, replies: [...(a.replies || []), reply] } : a
-      )
-    setAnnotations(updater)
-    setDisplayAnnotations(updater)
-  }, [])
+  /** 作者过滤（所有人 / 我 / 某位远程作者）。 */
+  const matchesAuthor = useCallback(
+    (ann: Annotation): boolean => {
+      if (authorFilter === "all") return true
+      if (authorFilter === "mine") {
+        return ann.author.id === "local-user" || ann.author.id === `hub:${myHubUserId}`
+      }
+      return ann.author.id === authorFilter
+    },
+    [authorFilter, myHubUserId]
+  )
 
-  const handleReplyDeleted = useCallback((annId: string, replyId: string) => {
-    const deleteRecursive = (replies: Reply[]): Reply[] => {
-      const filtered = replies.filter((r) => r.id !== replyId)
-      return filtered.map((r) =>
-        r.replies ? { ...r, replies: deleteRecursive(r.replies) } : r
-      )
+  const visibleAnnotations = useMemo(
+    () => displayAnnotations.filter((a) => matchesSearch(a, searchQuery) && matchesAuthor(a)),
+    [displayAnnotations, searchQuery, matchesSearch, matchesAuthor]
+  )
+
+  /** 除「我」之外出现过的作者（作者过滤器候选）。 */
+  const otherAuthors = useMemo(() => {
+    const seen = new Map<string, string>()
+    for (const a of displayAnnotations) {
+      const isMine =
+        a.author.id === "local-user" || a.author.id === `hub:${myHubUserId}`
+      if (!isMine && !seen.has(a.author.id)) seen.set(a.author.id, a.author.name)
     }
-    const updater = (prev: Annotation[]) =>
-      prev.map((a) =>
-        a.id === annId && a.replies
-          ? { ...a, replies: deleteRecursive(a.replies) }
-          : a
-      )
-    setAnnotations(updater)
-    setDisplayAnnotations(updater)
-  }, [])
-
-  const handleReplyEdited = useCallback((annId: string, replyId: string, content: string) => {
-    const editRecursive = (replies: Reply[]): Reply[] =>
-      replies.map((r) => {
-        if (r.id === replyId) return { ...r, content }
-        if (r.replies) return { ...r, replies: editRecursive(r.replies) }
-        return r
-      })
-    const updater = (prev: Annotation[]) =>
-      prev.map((a) =>
-        a.id === annId && a.replies
-          ? { ...a, replies: editRecursive(a.replies) }
-          : a
-      )
-    setAnnotations(updater)
-    setDisplayAnnotations(updater)
-  }, [])
+    return [...seen.entries()].map(([id, name]) => ({ id, name }))
+  }, [displayAnnotations, myHubUserId])
 
   const handleEditAnnotation = useCallback(async (annId: string, content: string) => {
     await storage.updateAnnotationContent(url, annId, content)
@@ -418,26 +411,6 @@ export default function SidePanel() {
     const updatedCategories = await storage.getPageCategories()
     setPageCategories(updatedCategories)
   }
-
-  const handleNestedReplyAdded = useCallback((annId: string, parentReplyId: string, reply: Reply) => {
-    const updater = (prev: Annotation[]) =>
-      prev.map((a) => {
-        if (a.id !== annId || !a.replies) return a
-        const addToParent = (replies: Reply[]): Reply[] =>
-          replies.map((r) => {
-            if (r.id === parentReplyId) {
-              return { ...r, replies: [...(r.replies || []), reply] }
-            }
-            if (r.replies) {
-              return { ...r, replies: addToParent(r.replies) }
-            }
-            return r
-          })
-        return { ...a, replies: addToParent(a.replies) }
-      })
-    setAnnotations(updater)
-    setDisplayAnnotations(updater)
-  }, [])
 
   const handleAddSticky = async () => {
     if (!url) return
@@ -889,10 +862,25 @@ export default function SidePanel() {
         <div className="sticky top-0 z-10 bg-slate-50/90 backdrop-blur-sm border-b border-slate-200/70 px-1 py-2 flex items-center justify-between gap-2">
           <span className="text-[10px] text-gray-400 truncate">
             {searchQuery.trim()
-              ? L.searchResults(displayAnnotations.filter((a) => matchesSearch(a, searchQuery)).length)
+              ? L.searchResults(visibleAnnotations.length)
               : customOrder ? L.customSort : L.positionSort}
           </span>
           <div className="flex items-center gap-2 shrink-0">
+            {(otherAuthors.length > 0 || authorFilter !== "all") && (
+              <select
+                value={authorFilter}
+                onChange={(e) => setAuthorFilter(e.target.value)}
+                title={L.authorFilterTitle}
+                className="text-[10px] border border-slate-200 rounded bg-white px-1 py-0.5 text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 max-w-[90px]">
+                <option value="all">{L.authorFilterAll}</option>
+                <option value="mine">{L.authorFilterMine}</option>
+                {otherAuthors.map(({ id, name }) => (
+                  <option key={id} value={id}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            )}
             {customOrder && !searchQuery.trim() && (
               <button
                 onClick={handleResetOrder}
@@ -910,7 +898,7 @@ export default function SidePanel() {
           </div>
         </div>
         <div className="p-1 pt-3 space-y-3">
-        {displayAnnotations.filter((a) => matchesSearch(a, searchQuery)).length === 0 && (
+        {visibleAnnotations.length === 0 && (
           <div className="text-center text-slate-400 text-sm py-12">
             <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-lg">✦</div>
             {url
@@ -920,18 +908,13 @@ export default function SidePanel() {
               : L.selectTabPrompt}
           </div>
         )}
-        {displayAnnotations.filter((a) => matchesSearch(a, searchQuery)).map((ann) => (
+        {visibleAnnotations.map((ann) => (
           <AnnotationCard
             key={ann.id}
             ann={ann}
-            url={url}
             locale={locale}
             highlightTerms={highlightTerms}
             onDelete={handleDelete}
-            onReplyAdded={handleReplyAdded}
-            onReplyDeleted={handleReplyDeleted}
-            onReplyEdited={handleReplyEdited}
-            onNestedReplyAdded={handleNestedReplyAdded}
             onEdit={handleEditAnnotation}
             onStatusToggle={handleStatusToggle}
             onColorChange={handleAnnotationColorChange}

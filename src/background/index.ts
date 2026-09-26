@@ -2,6 +2,7 @@
 
 import { applyCategoryIcon } from "@/services/actionIcon"
 import { resolvePageCategory } from "@/services/categories"
+import * as hub from "@/services/hub"
 import * as storage from "@/services/storage"
 
 // i18n for background (service worker can't use navigator.language)
@@ -99,10 +100,73 @@ async function ensureOptionalPageAccess(tab?: chrome.tabs.Tab): Promise<boolean>
 chrome.runtime.onInstalled.addListener(() => {
   console.log("[OmniNotation] Extension installed")
   setupContextMenu()
+  registerHubSyncAlarm()
 })
 
 // Re-register on startup (also covers dev reloads where onInstalled doesn't fire)
 setupContextMenu()
+registerHubSyncAlarm()
+
+// ===== Axiom Hub 接收同步（hub-share-plan §3.2 / §5.2）=====
+
+const HUB_SYNC_ALARM = "hub-sync"
+const HUB_SYNC_PERIOD_MIN = 15
+/** tabs.onUpdated 触发的针对性同步节流（避免每次导航都打一轮 API）。 */
+const HUB_TAB_SYNC_MIN_INTERVAL_MS = 60_000
+let lastTabSyncAt = 0
+
+/**
+ * 拉取我接收的网页批注并合并到本地。
+ * 幂等：由 Hub `content_hash` 判变更；tombstone 防复活；撤回的页面整页清理。
+ */
+async function syncHubSubscriptions(): Promise<"ok" | "skipped" | "error"> {
+  try {
+    const session = await hub.getHubSession()
+    if (!session) return "skipped"
+    const since = await hub.getHubSyncCursor()
+    const feed = await hub.hubPullSubscriptions(since || undefined)
+    for (const page of feed.pages) {
+      let comments: hub.HubWebPageComment[] = []
+      try {
+        comments = await hub.hubListWebPageComments(page.page_id)
+      } catch {
+        // 评论拉取失败不阻塞批注合并（下次同步会再刷）
+      }
+      await storage.mergeRemoteAnnotations(
+        page.url,
+        { pageId: page.page_id, annotations: page.annotations },
+        hub.groupHubComments(comments)
+      )
+    }
+    await storage.reconcileAcceptedPages(feed.pages.map((p) => p.page_id))
+    await hub.setHubSyncCursor(feed.now)
+    return "ok"
+  } catch (e) {
+    console.warn("[OmniNotation] hub sync failed:", e)
+    return "error"
+  }
+}
+
+/** MV3：alarms 持久化，service worker 被杀后到期会重新唤醒。 */
+function registerHubSyncAlarm(): void {
+  try {
+    void chrome.alarms.create(HUB_SYNC_ALARM, { periodInMinutes: HUB_SYNC_PERIOD_MIN })
+  } catch (e) {
+    console.warn("[OmniNotation] hub alarm register failed:", e)
+  }
+}
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === HUB_SYNC_ALARM) void syncHubSubscriptions()
+})
+
+/** 页面加载完成的针对性同步：登录态 + 60s 节流。 */
+function maybeSyncOnTabComplete(): void {
+  const now = Date.now()
+  if (now - lastTabSyncAt < HUB_TAB_SYNC_MIN_INTERVAL_MS) return
+  lastTabSyncAt = now
+  void syncHubSubscriptions()
+}
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   const item = MARK_STYLE_ITEMS.find((i) => i.id === info.menuItemId)
@@ -139,6 +203,8 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     }).catch(() => {
       // Content script may not be injected yet
     })
+    // 低延迟路径：打开/刷新页面时顺带同步一次接收的批注（登录态 + 节流）
+    maybeSyncOnTabComplete()
   }
 })
 
@@ -186,6 +252,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     })()
     sendResponse({ ok: true })
     return false
+  }
+  // 设置页「同步接收的批注」按钮：立即拉取一次
+  if (message.type === "HUB_SYNC_NOW") {
+    void syncHubSubscriptions().then((status) => sendResponse({ status }))
+    return true
   }
 })
 

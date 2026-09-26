@@ -126,13 +126,37 @@ export function HubAccount({ locale: localeProp }: { locale?: Locale }) {
     setBusy(true)
     try {
       // 服务端可能已不存在（404），本地记录仍要清掉
-      await hub.hubDeleteShare(record.shareId)
+      await hub.hubDeleteWebPage(record.pageId)
     } catch {
       // 忽略远端错误，保留本地清理
     } finally {
-      await hub.removeShareRecord(record.shareId)
-      setHistory((prev) => prev.filter((r) => r.shareId !== record.shareId))
+      await hub.removeShareRecord(record.pageId)
+      setHistory((prev) => prev.filter((r) => r.pageId !== record.pageId))
       setFeedback({ kind: "ok", text: L.hubShareDeleted })
+      setBusy(false)
+    }
+  }
+
+  /** 手动触发一次「接收的批注」同步（走后台 service worker）。 */
+  const handleSyncNow = async () => {
+    if (busy) return
+    setBusy(true)
+    setFeedback(null)
+    try {
+      const resp = await chrome.runtime.sendMessage({ type: "HUB_SYNC_NOW" })
+      if (resp?.status === "ok") {
+        setFeedback({ kind: "ok", text: L.hubSyncDone })
+      } else if (resp?.status === "skipped") {
+        setFeedback({ kind: "err", text: L.hubNeedLogin })
+      } else {
+        setFeedback({ kind: "err", text: L.hubSyncFailed(resp?.status || "network") })
+      }
+    } catch (e) {
+      setFeedback({
+        kind: "err",
+        text: L.hubSyncFailed(e instanceof Error ? e.message : String(e))
+      })
+    } finally {
       setBusy(false)
     }
   }
@@ -162,6 +186,13 @@ export function HubAccount({ locale: localeProp }: { locale?: Locale }) {
               </p>
             </div>
           </div>
+          <button
+            onClick={handleSyncNow}
+            disabled={busy}
+            title={L.hubSyncNowTitle}
+            className="w-full py-1.5 text-[11px] font-medium rounded-md border border-blue-200 text-blue-600 hover:bg-blue-50 disabled:opacity-50 transition-colors">
+            {busy ? L.hubSyncing : L.hubSyncNow}
+          </button>
           <button
             onClick={handleLogout}
             disabled={busy}
@@ -243,7 +274,7 @@ export function HubAccount({ locale: localeProp }: { locale?: Locale }) {
           <ul className="space-y-1">
             {history.map((record) => (
               <li
-                key={record.shareId}
+                key={record.pageId}
                 className="flex items-center gap-1 rounded-md border border-slate-100 bg-slate-50/60 px-2 py-1">
                 <div className="min-w-0 flex-1">
                   <p className="text-[10px] text-slate-600 truncate" title={record.title}>

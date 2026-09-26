@@ -157,64 +157,6 @@ export async function deleteAnnotation(url: string, id: string): Promise<void> {
   await safeSet({ [key]: filtered })
 }
 
-export async function addReply(url: string, annotationId: string, reply: Reply): Promise<void> {
-  const key = getKey(url)
-  const annotations = await getAnnotations(url)
-  const ann = annotations.find((a) => a.id === annotationId)
-  if (!ann) return
-  if (!ann.replies) ann.replies = []
-  ann.replies.push(reply)
-  await safeSet({ [key]: annotations })
-}
-
-function findReplyRecursive(replies: Reply[], replyId: string): Reply | undefined {
-  for (const r of replies) {
-    if (r.id === replyId) return r
-    if (r.replies) {
-      const found = findReplyRecursive(r.replies, replyId)
-      if (found) return found
-    }
-  }
-  return undefined
-}
-
-function deleteReplyRecursive(replies: Reply[], replyId: string): boolean {
-  const index = replies.findIndex((r) => r.id === replyId)
-  if (index >= 0) {
-    replies.splice(index, 1)
-    return true
-  }
-  for (const r of replies) {
-    if (r.replies && deleteReplyRecursive(r.replies, replyId)) {
-      return true
-    }
-  }
-  return false
-}
-
-function updateReplyRecursive(replies: Reply[], replyId: string, content: string): boolean {
-  const reply = replies.find((r) => r.id === replyId)
-  if (reply) {
-    reply.content = content
-    return true
-  }
-  for (const r of replies) {
-    if (r.replies && updateReplyRecursive(r.replies, replyId, content)) {
-      return true
-    }
-  }
-  return false
-}
-
-export async function deleteReply(url: string, annotationId: string, replyId: string): Promise<void> {
-  const key = getKey(url)
-  const annotations = await getAnnotations(url)
-  const ann = annotations.find((a) => a.id === annotationId)
-  if (!ann || !ann.replies) return
-  deleteReplyRecursive(ann.replies, replyId)
-  await safeSet({ [key]: annotations })
-}
-
 export async function updateAnnotationContent(url: string, annotationId: string, content: string): Promise<void> {
   const key = getKey(url)
   const annotations = await getAnnotations(url)
@@ -222,15 +164,8 @@ export async function updateAnnotationContent(url: string, annotationId: string,
   if (!ann) return
   ann.data.content = content
   ann.updatedAt = new Date().toISOString()
-  await safeSet({ [key]: annotations })
-}
-
-export async function updateReplyContent(url: string, annotationId: string, replyId: string, content: string): Promise<void> {
-  const key = getKey(url)
-  const annotations = await getAnnotations(url)
-  const ann = annotations.find((a) => a.id === annotationId)
-  if (!ann || !ann.replies) return
-  if (!updateReplyRecursive(ann.replies, replyId, content)) return
+  // 本地编辑远程批注 → 视为 fork，远端 content_hash 变更不再覆盖（hub-share-plan §3.3）
+  if (ann.origin) ann.origin.forked = true
   await safeSet({ [key]: annotations })
 }
 
@@ -240,6 +175,7 @@ export async function updateAnnotationStatus(url: string, annotationId: string, 
   const ann = annotations.find((a) => a.id === annotationId)
   if (!ann) return
   ann.status = status
+  if (ann.origin) ann.origin.forked = true
   await safeSet({ [key]: annotations })
 }
 
@@ -250,7 +186,150 @@ export async function updateAnnotationColor(url: string, annotationId: string, c
   if (!ann) return
   ann.data.color = color
   ann.updatedAt = new Date().toISOString()
+  if (ann.origin) ann.origin.forked = true
   await safeSet({ [key]: annotations })
+}
+
+// ========================
+// Hub 远程批注合并（hub-share-plan §3.3 同步语义）
+// ========================
+
+/** Hub 拉取口下发的单条批注（`WebAnnotationOut`）。 */
+export interface RemoteAnnotationItem {
+  annotation_id: string
+  author_id: string
+  author_name: string
+  annotation: Annotation
+  content_hash: string
+}
+
+export interface RemotePageFeed {
+  pageId: string
+  annotations: RemoteAnnotationItem[]
+}
+
+const REMOTE_TOMBSTONE_PREFIX = "remote_tombstones:"
+const HUB_ACCEPTED_PAGES_KEY = "hub_accepted_pages"
+
+/** 用户在插件里删除过的远程批注 id 集合（防 Hub 重发复活）。 */
+export async function getRemoteTombstones(url: string): Promise<Set<string>> {
+  const key = REMOTE_TOMBSTONE_PREFIX + normalizePageUrl(url)
+  const data = await safeGet(key)
+  const list = data[key]
+  return new Set(Array.isArray(list) ? list : [])
+}
+
+export async function addRemoteTombstone(url: string, annotationId: string): Promise<void> {
+  const key = REMOTE_TOMBSTONE_PREFIX + normalizePageUrl(url)
+  const tombstones = await getRemoteTombstones(url)
+  tombstones.add(annotationId)
+  await safeSet({ [key]: [...tombstones] })
+}
+
+function remoteAnnotationOf(
+  item: RemoteAnnotationItem,
+  url: string,
+  pageId: string,
+  replies?: Reply[]
+): Annotation {
+  return {
+    ...item.annotation,
+    id: item.annotation_id,
+    url,
+    origin: {
+      pageId,
+      authorId: item.author_id,
+      contentHash: item.content_hash
+    },
+    author: { id: `hub:${item.author_id}`, name: item.author_name },
+    // 评论只读展示态：来自 Hub 评论同步（无评论时不留旧数据）
+    replies: replies && replies.length > 0 ? replies : undefined
+  }
+}
+
+/**
+ * 把一次订阅拉取的页面批注合并进本地 `annotations:<url>`：
+ *
+ * 1. id 已存在且无 `origin` → 本地自建批注，跳过不覆盖；
+ * 2. id 已存在且有 `origin` → `content_hash` 变了才覆盖（未变时仅刷新评论展示态）；
+ * 3. id 不存在且不在 tombstone → 插入，`origin`/`author` 用 Hub 下发值；
+ * 4. Hub 端删除（不在拉取列表）→ 本地同步移除（本地 fork 保留）。
+ */
+export async function mergeRemoteAnnotations(
+  url: string,
+  feed: RemotePageFeed,
+  commentsByAnnotation: Record<string, Reply[]> = {}
+): Promise<void> {
+  const key = getKey(url)
+  const existing = await getAnnotations(url)
+  const tombstones = await getRemoteTombstones(url)
+  const incomingIds = new Set(feed.annotations.map((ra) => ra.annotation_id))
+
+  // 规则4：本页远程批注若不在本次拉取结果里 → 删除（fork 保留）
+  const byId = new Map(
+    existing
+      .filter(
+        (a) => !(a.origin?.pageId === feed.pageId && !incomingIds.has(a.id) && !a.origin.forked)
+      )
+      .map((a) => [a.id, a])
+  )
+
+  for (const item of feed.annotations) {
+    if (tombstones.has(item.annotation_id)) continue // 防复活
+    const local = byId.get(item.annotation_id)
+    if (local) {
+      // 规则1：本地自建（无 origin）→ 不吞用户自己的数据
+      if (!local.origin) continue
+      // 本地 fork：用户改过的远程副本 → 不覆盖
+      if (local.origin.forked) continue
+      // 规则2：content_hash 未变 → 仅刷新评论展示态
+      const freshReplies = commentsByAnnotation[item.annotation_id]
+      if (local.origin.contentHash === item.content_hash) {
+        if (freshReplies) byId.set(item.annotation_id, { ...local, replies: freshReplies })
+        continue
+      }
+      byId.set(item.annotation_id, remoteAnnotationOf(item, url, feed.pageId, freshReplies))
+    } else {
+      // 规则3：新远程批注 → 插入
+      byId.set(
+        item.annotation_id,
+        remoteAnnotationOf(item, url, feed.pageId, commentsByAnnotation[item.annotation_id])
+      )
+    }
+  }
+
+  await safeSet({ [key]: [...byId.values()] })
+}
+
+export async function getHubAcceptedPages(): Promise<string[]> {
+  const data = await safeGet(HUB_ACCEPTED_PAGES_KEY)
+  const list = data[HUB_ACCEPTED_PAGES_KEY]
+  return Array.isArray(list) ? list : []
+}
+
+/**
+ * 接收集合对账：上次接收但本次不在列表里的页面 → 整页清理本地远程批注
+ * （对应「取消接收」与 Hub 端撤回；单条删除走 tombstone，两者不冲突）。
+ */
+export async function reconcileAcceptedPages(currentIds: string[]): Promise<void> {
+  const prev = await getHubAcceptedPages()
+  const current = new Set(currentIds)
+  const gone = prev.filter((p) => !current.has(p))
+  if (gone.length > 0) {
+    const all = await safeGet(null as any)
+    const updates: Record<string, any> = {}
+    for (const [key, value] of Object.entries(all)) {
+      if (!key.startsWith(ANNOTATION_KEY_PREFIX) || !Array.isArray(value)) continue
+      const kept = (value as Annotation[]).filter(
+        (a) => !(a.origin && gone.includes(a.origin.pageId))
+      )
+      if (kept.length !== (value as Annotation[]).length) {
+        updates[key] = kept
+      }
+    }
+    if (Object.keys(updates).length > 0) await safeSet(updates)
+  }
+  await safeSet({ [HUB_ACCEPTED_PAGES_KEY]: currentIds })
 }
 
 const RECENT_COLORS_KEY = "recent_annotation_colors"
@@ -378,19 +457,6 @@ export async function getSuggestedPageCategory(url: string, title = ""): Promise
   }
 
   return categories[0]
-}
-
-// Hierarchical replies — reply to a specific reply
-export async function addNestedReply(url: string, annotationId: string, parentReplyId: string, reply: Reply): Promise<void> {
-  const key = getKey(url)
-  const annotations = await getAnnotations(url)
-  const ann = annotations.find((a) => a.id === annotationId)
-  if (!ann || !ann.replies) return
-  const parent = ann.replies.find((r) => r.id === parentReplyId)
-  if (!parent) return
-  if (!parent.replies) parent.replies = []
-  parent.replies.push(reply)
-  await safeSet({ [key]: annotations })
 }
 
 // Groups

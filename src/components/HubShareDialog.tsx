@@ -6,12 +6,12 @@ import type { Annotation } from "@/types"
 
 type Feedback = { kind: "ok" | "err"; text: string } | null
 
-
 /**
- * 分享对话框：把一批批注（整页或单条）作为一次 share 上传到 Axiom Hub。
+ * 分享对话框：把选中的批注上传为一次网页批注分享（Axiom Hub `/api/webpages`）。
  *
- * 上传字段对齐 `POST /api/shares`（multipart）：title / description / visibility /
- * item_snapshot / annotations / recipients（定向）/ files[]（可选 Markdown 附件）。
+ * 上传字段（multipart）：url / title / summary_md / visibility /
+ * annotations（JSON 数组）/ snapshot（可选视口截图）。
+ * 幂等键 (owner, url_hash)：同页重分享 = 整页覆盖，不会出现两个页面。
  */
 export function HubShareDialog({
   url,
@@ -32,9 +32,11 @@ export function HubShareDialog({
   const [user, setUser] = useState<hub.HubUser | null>(null)
   const [ready, setReady] = useState(false)
   const [visibility, setVisibility] = useState<hub.HubVisibility>("link")
-  const [description, setDescription] = useState("")
-  const [recipients, setRecipients] = useState("")
-  const [attachMarkdown, setAttachMarkdown] = useState(false)
+  // 批注勾选（默认全选）
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(
+    () => new Set(annotations.map((a) => a.id))
+  )
+  const [withSnapshot, setWithSnapshot] = useState(true)
   const [busy, setBusy] = useState(false)
   const [feedback, setFeedback] = useState<Feedback>(null)
   const [shareLink, setShareLink] = useState<string | null>(null)
@@ -53,17 +55,37 @@ export function HubShareDialog({
   }, [])
 
   const isEmpty = annotations.length === 0
+  const selected = annotations.filter((a) => selectedIds.has(a.id))
   const defaultTitle = pageTitle?.trim() || url
 
+  const toggleAnnotation = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  /** 捕获当前视口截图（需 host/activeTab 权限；失败 → 降级纯文本分享）。 */
+  const captureSnapshot = async (): Promise<string | null> => {
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+      if (!tab?.windowId) return null
+      const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
+        format: "jpeg",
+        quality: 85
+      })
+      return dataUrl || null
+    } catch {
+      return null
+    }
+  }
+
   const handleSubmit = async () => {
-    if (busy || isEmpty) return
+    if (busy || selected.length === 0) return
     if (!user) {
       setFeedback({ kind: "err", text: L.hubNeedLogin })
-      return
-    }
-    const recipientList = hub.parseRecipients(recipients)
-    if (visibility === "direct" && recipientList.length === 0) {
-      setFeedback({ kind: "err", text: L.hubShareRecipientsRequired })
       return
     }
     const granted = await hub.ensureHubHostPermission()
@@ -74,24 +96,30 @@ export function HubShareDialog({
     setBusy(true)
     setFeedback(null)
     try {
-      const { share_id } = await hub.hubCreateShare({
-        title: defaultTitle,
-        description,
-        visibility,
-        annotations,
-        recipients: visibility === "direct" ? recipientList : undefined,
-        attachMarkdown,
-        itemSnapshot: {
-          url,
-          title: defaultTitle,
-          annotationCount: annotations.length,
-          exportedAt: new Date().toISOString(),
-          source: "omninotation"
+      let snapshotDataUrl: string | undefined
+      if (withSnapshot) {
+        snapshotDataUrl = (await captureSnapshot()) ?? undefined
+        if (!snapshotDataUrl) {
+          // 静默降级：截图失败不阻塞分享（hub-share-plan §5.3）
+          setFeedback({ kind: "ok", text: L.hubSnapshotUnavailable })
         }
+      }
+      const { page_id } = await hub.hubCreateWebPage({
+        url,
+        title: defaultTitle,
+        visibility,
+        annotations: selected,
+        summaryMd: hub.buildPageSummaryMarkdown({
+          title: defaultTitle,
+          url,
+          authorName: user.username,
+          annotations: selected
+        }),
+        snapshotDataUrl
       })
-      const link = await hub.hubShareUrl(share_id)
+      const link = await hub.hubWebPageUrl(page_id)
       await hub.addShareRecord({
-        shareId: share_id,
+        pageId: page_id,
         title: defaultTitle,
         url,
         visibility,
@@ -120,8 +148,7 @@ export function HubShareDialog({
   const visibilities: { key: hub.HubVisibility; label: string }[] = [
     { key: "public", label: L.hubVisPublic },
     { key: "link", label: L.hubVisLink },
-    { key: "followers", label: L.hubVisFollowers },
-    { key: "direct", label: L.hubVisDirect }
+    { key: "followers", label: L.hubVisFollowers }
   ]
 
   return (
@@ -143,9 +170,6 @@ export function HubShareDialog({
 
         <p className="text-[11px] text-slate-500 leading-snug truncate" title={defaultTitle}>
           {defaultTitle}
-        </p>
-        <p className="text-[10px] text-slate-400">
-          {annotations.length} × {L.tabNotes}
         </p>
 
         {ready && !user && (
@@ -176,9 +200,56 @@ export function HubShareDialog({
           </div>
         ) : (
           <>
+            {/* 批注勾选（默认全选） */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] text-slate-400">{L.hubSharePickAnnotations}</label>
+                <button
+                  onClick={() =>
+                    setSelectedIds((prev) =>
+                      prev.size === annotations.length
+                        ? new Set<string>()
+                        : new Set(annotations.map((a) => a.id))
+                    )
+                  }
+                  className="text-[10px] text-blue-600 hover:text-blue-800">
+                  {selectedIds.size === annotations.length ? L.hubShareDeselectAll : L.hubShareSelectAll}
+                </button>
+              </div>
+              <div className="max-h-40 overflow-y-auto rounded-md border border-slate-100 divide-y divide-slate-100">
+                {annotations.map((ann) => (
+                  <label
+                    key={ann.id}
+                    className="flex items-start gap-2 px-2 py-1.5 cursor-pointer hover:bg-slate-50">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(ann.id)}
+                      onChange={() => toggleAnnotation(ann.id)}
+                      className="mt-0.5 accent-blue-600"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[10px] text-slate-600 leading-snug line-clamp-2">
+                        {ann.quote
+                          ? `"${ann.quote.replace(/\s+/g, " ").slice(0, 80)}${ann.quote.length > 80 ? "…" : ""}"`
+                          : ann.data.content
+                          ? ann.data.content.replace(/\s+/g, " ").slice(0, 80)
+                          : L.hubShareUntitledAnnotation}
+                      </span>
+                      <span className="block text-[9px] text-slate-400">
+                        {ann.author.name} · {new Date(ann.createdAt).toLocaleDateString()}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <p className="text-[10px] text-slate-400">
+                {L.hubShareSelectedCount(selectedIds.size, annotations.length)}
+              </p>
+            </div>
+
             <div className="space-y-1">
               <label className="text-[10px] text-slate-400">{L.hubShareVisibility}</label>
-              <div className="grid grid-cols-2 gap-1">
+              <div className="grid grid-cols-3 gap-1">
                 {visibilities.map(({ key, label }) => (
                   <button
                     key={key}
@@ -194,42 +265,19 @@ export function HubShareDialog({
               </div>
             </div>
 
-            {visibility === "direct" && (
-              <div className="space-y-1">
-                <label className="text-[10px] text-slate-400">{L.hubShareRecipients}</label>
-                <textarea
-                  value={recipients}
-                  onChange={(e) => setRecipients(e.target.value)}
-                  placeholder={L.hubShareRecipientsPlaceholder}
-                  rows={2}
-                  className="w-full text-[11px] border border-slate-200 rounded-md px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-            )}
-
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder={L.hubShareDescription}
-              rows={2}
-              className="w-full text-[11px] border border-slate-200 rounded-md px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-
             <label className="flex items-center gap-1.5 text-[10px] text-slate-500 cursor-pointer">
               <input
                 type="checkbox"
-                checked={attachMarkdown}
-                onChange={(e) => setAttachMarkdown(e.target.checked)}
+                checked={withSnapshot}
+                onChange={(e) => setWithSnapshot(e.target.checked)}
                 className="accent-blue-600"
               />
-              {L.hubShareAttachMarkdown}
+              {L.hubShareWithSnapshot}
             </label>
-
-            {isEmpty && <p className="text-[10px] text-slate-400">{L.hubShareEmpty}</p>}
 
             <button
               onClick={handleSubmit}
-              disabled={busy || isEmpty || !user}
+              disabled={busy || selected.length === 0 || !user}
               className="w-full py-1.5 text-[11px] font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
               {busy ? L.hubSharing : L.hubShareSubmit}
             </button>

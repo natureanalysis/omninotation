@@ -1,21 +1,21 @@
 import { useEffect, useRef, useState } from "react"
-import * as storage from "@/services/storage"
 import { COLOR_PRESETS, DEFAULT_ANNOTATION_COLOR, hexToRgba, parseRgba, rgbaToHex, sameRgb, withAlpha } from "@/services/color"
 import { detectLocale, t, type Locale } from "@/services/i18n"
-import type { Annotation, Reply } from "@/types"
+import type { Annotation } from "@/types"
 import { MarkdownContent } from "./MarkdownContent"
 import { MarkdownEditor } from "./MarkdownEditor"
-import { ReplyThread } from "./ReplyThread"
+
+/** 由作者 id 派生稳定的色相（非本人作者的名字徽标配色）。 */
+function authorHue(id: string): number {
+  let h = 0
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 360
+  return h
+}
 
 export function AnnotationCard({
   ann,
-  url,
   highlightTerms,
   onDelete,
-  onReplyAdded,
-  onReplyDeleted,
-  onReplyEdited,
-  onNestedReplyAdded,
   onEdit,
   onStatusToggle,
   onColorChange,
@@ -34,13 +34,8 @@ export function AnnotationCard({
   locale: localeProp
 }: {
   ann: Annotation
-  url: string
   highlightTerms?: string[]
   onDelete: (id: string) => void
-  onReplyAdded: (annId: string, reply: Reply) => void
-  onReplyDeleted: (annId: string, replyId: string) => void
-  onReplyEdited: (annId: string, replyId: string, content: string) => void
-  onNestedReplyAdded: (annId: string, parentReplyId: string, reply: Reply) => void
   onEdit: (annId: string, content: string) => void
   onStatusToggle: (annId: string) => void
   onColorChange?: (annId: string, color: string | undefined) => void
@@ -58,8 +53,6 @@ export function AnnotationCard({
   onShare?: (ann: Annotation) => void
   locale?: Locale
 }) {
-  const [replyText, setReplyText] = useState("")
-  const [showReply, setShowReply] = useState(false)
   // Follow the locale passed down from the shell (side panel) so a language
   // switch re-renders every card; fall back to the detected locale.
   const locale = localeProp ?? detectLocale()
@@ -87,44 +80,6 @@ export function AnnotationCard({
 
   const applyColor = (color: string | undefined) => {
     onColorChange?.(ann.id, color)
-  }
-
-  const handleAddReply = async () => {
-    if (!replyText.trim() || !url) return
-    const reply: Reply = {
-      id: crypto.randomUUID(),
-      content: replyText.trim(),
-      author: { id: "local-user", name: L.me },
-      createdAt: new Date().toISOString()
-    }
-    await storage.addReply(url, ann.id, reply)
-    onReplyAdded(ann.id, reply)
-    setReplyText("")
-  }
-
-  const handleDeleteReply = async (replyId: string) => {
-    if (!url) return
-    await storage.deleteReply(url, ann.id, replyId)
-    onReplyDeleted(ann.id, replyId)
-  }
-
-  const handleEditReply = async (replyId: string, content: string) => {
-    if (!url) return
-    await storage.updateReplyContent(url, ann.id, replyId, content)
-    onReplyEdited(ann.id, replyId, content)
-  }
-
-  const handleNestedReply = async (parentReplyId: string, content: string) => {
-    if (!url) return
-    const reply: Reply = {
-      id: crypto.randomUUID(),
-      content,
-      author: { id: "local-user", name: L.me },
-      parentId: parentReplyId,
-      createdAt: new Date().toISOString()
-    }
-    await storage.addNestedReply(url, ann.id, parentReplyId, reply)
-    onNestedReplyAdded(ann.id, parentReplyId, reply)
   }
 
   const handleSaveEdit = () => {
@@ -176,7 +131,18 @@ export function AnnotationCard({
               title={ann.data.color}
             />
           )}
-          <span className="text-[10px] px-1 py-0.5 rounded bg-gray-100 text-gray-600">
+          {ann.origin && (
+            <span
+              className="text-[10px] px-1 py-0.5 rounded bg-indigo-100 text-indigo-700"
+              title={L.hubRemoteBadgeTitle}>
+              ☁ {L.hubRemoteBadge}
+            </span>
+          )}
+          <span className="text-[10px] px-1 py-0.5 rounded bg-gray-100 text-gray-600 flex items-center gap-1">
+            <span
+              className="w-2 h-2 rounded-full shrink-0"
+              style={{ backgroundColor: `hsl(${authorHue(ann.author.id)} 70% 55%)` }}
+            />
             👤 {ann.author.name}
           </span>
           {ann.status === "resolved" && (
@@ -418,58 +384,25 @@ export function AnnotationCard({
         </div>
       )}
 
-      {/* Replies */}
+      {/* Replies / Hub comments — 只读展示（评论在 Hub 网页端产生，同步为展示态） */}
       {ann.replies && ann.replies.length > 0 && (
-        <div className="mt-2 space-y-2 border-t border-gray-200 pt-2">
+        <div className="mt-2 space-y-1.5 border-t border-gray-200 pt-2">
           {ann.replies.map((reply) => (
-            <ReplyThread
-              key={reply.id}
-              reply={reply}
-              locale={locale}
-              onDelete={(id) => handleDeleteReply(id)}
-              onEdit={(id, content) => handleEditReply(id, content)}
-              onReply={(id, content) => handleNestedReply(id, content)}
-            />
+            <div key={reply.id} onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <span className="text-[10px] font-medium text-gray-600">
+                  {reply.author?.name || L.anonymous}
+                </span>
+                <span className="text-[9px] text-gray-300">·</span>
+                <span className="text-[10px] text-gray-400">
+                  {new Date(reply.createdAt).toLocaleString(locale === "zh-CN" ? "zh-CN" : "en-US")}
+                </span>
+              </div>
+              <MarkdownContent text={reply.content} />
+            </div>
           ))}
         </div>
       )}
-
-      {/* Reply input */}
-      <div className="mt-2" onClick={(e) => e.stopPropagation()}>
-        {showReply ? (
-          <div className="space-y-1">
-            <textarea
-              value={replyText}
-              onChange={(e) => setReplyText(e.target.value)}
-              placeholder={L.addCommentMarkdown}
-              className="w-full text-xs border border-gray-200 rounded p-2 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
-              rows={3}
-            />
-            <div className="flex gap-1 justify-end">
-              <button
-                onClick={() => {
-                  setShowReply(false)
-                  setReplyText("")
-                }}
-                className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 rounded border border-gray-200 hover:bg-gray-50">
-                {L.cancel}
-              </button>
-              <button
-                onClick={handleAddReply}
-                disabled={!replyText.trim()}
-                className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
-                {L.send}
-              </button>
-            </div>
-          </div>
-        ) : (
-          <button
-            onClick={() => setShowReply(true)}
-            className="text-xs text-blue-600 hover:text-blue-800 hover:underline">
-            💬 {L.addCommentBtn}
-          </button>
-        )}
-      </div>
     </div>
   )
 }
