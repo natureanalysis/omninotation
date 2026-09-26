@@ -10,7 +10,9 @@ type Feedback = { kind: "ok" | "err"; text: string } | null
  * 分享对话框：把选中的批注上传为一次网页批注分享（Axiom Hub `/api/webpages`）。
  *
  * 上传字段（multipart）：url / title / summary_md / visibility /
- * annotations（JSON 数组）/ snapshot（可选视口截图）。
+ * annotations（JSON 数组）/ page_md（完整批注 Markdown 文件，Hub 直接渲染）/
+ * snapshot（可选视口截图）。
+ * 公开可见性需 Hub 管理员审核通过后才会真正发布（review_status: pending → approved）。
  * 幂等键 (owner, url_hash)：同页重分享 = 整页覆盖，不会出现两个页面。
  */
 export function HubShareDialog({
@@ -104,17 +106,19 @@ export function HubShareDialog({
           setFeedback({ kind: "ok", text: L.hubSnapshotUnavailable })
         }
       }
+      const md = hub.buildPageMarkdown({
+        title: defaultTitle,
+        url,
+        authorName: user.username,
+        annotations: selected
+      })
       const { page_id } = await hub.hubCreateWebPage({
         url,
         title: defaultTitle,
         visibility,
         annotations: selected,
-        summaryMd: hub.buildPageSummaryMarkdown({
-          title: defaultTitle,
-          url,
-          authorName: user.username,
-          annotations: selected
-        }),
+        summaryMd: md,
+        pageMd: md,
         snapshotDataUrl
       })
       const link = await hub.hubWebPageUrl(page_id)
@@ -264,6 +268,9 @@ export function HubShareDialog({
                 ))}
               </div>
             </div>
+            {visibility === "public" && (
+              <p className="text-[9px] leading-snug text-amber-600">{L.hubVisPublicNote}</p>
+            )}
 
             <label className="flex items-center gap-1.5 text-[10px] text-slate-500 cursor-pointer">
               <input

@@ -270,6 +270,7 @@ const translations = {
     hubShareDialogTitle: "分享到 Axiom Hub",
     hubShareVisibility: "可见范围",
     hubVisPublic: "公开",
+    hubVisPublicNote: "公开分享需管理员审核通过后才会出现在公开列表",
     hubVisLink: "持链接可见",
     hubVisFollowers: "关注者",
     hubSharePickAnnotations: "选择要分享的批注",
@@ -277,7 +278,7 @@ const translations = {
     hubShareDeselectAll: "全不选",
     hubShareSelectedCount: (n: number, total: number) => `已选 ${n}/${total} 条`,
     hubShareUntitledAnnotation: "（无内容批注）",
-    hubShareWithSnapshot: "附带页面截图",
+    hubShareWithSnapshot: "附带页面截图（同时附带 Markdown 文件）",
     hubSnapshotUnavailable: "截图捕获失败，已按纯文本分享",
     hubShareSubmit: "分享",
     hubSharing: "分享中…",
@@ -570,6 +571,7 @@ const translations = {
     hubShareDialogTitle: "Share to Axiom Hub",
     hubShareVisibility: "Visibility",
     hubVisPublic: "Public",
+    hubVisPublicNote: "Public shares appear in the public list only after admin approval",
     hubVisLink: "Anyone with the link",
     hubVisFollowers: "Followers",
     hubSharePickAnnotations: "Choose annotations to share",
@@ -577,7 +579,7 @@ const translations = {
     hubShareDeselectAll: "Deselect all",
     hubShareSelectedCount: (n: number, total: number) => `${n}/${total} selected`,
     hubShareUntitledAnnotation: "(empty annotation)",
-    hubShareWithSnapshot: "Attach page screenshot",
+    hubShareWithSnapshot: "Attach page screenshot (Markdown file attached too)",
     hubSnapshotUnavailable: "Screenshot unavailable, shared as text only",
     hubShareSubmit: "Share",
     hubSharing: "Sharing…",
@@ -856,6 +858,7 @@ export interface TranslationKeys {
   hubShareDialogTitle: string
   hubShareVisibility: string
   hubVisPublic: string
+  hubVisPublicNote: string
   hubVisLink: string
   hubVisFollowers: string
   hubSharePickAnnotations: string

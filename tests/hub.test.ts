@@ -5,7 +5,7 @@ import {
   DEFAULT_HUB_BASE_URL,
   HubApiError,
   addShareRecord,
-  buildPageSummaryMarkdown,
+  buildPageMarkdown,
   getHubBaseUrl,
   getHubSession,
   getShareHistory,
@@ -100,9 +100,9 @@ describe("hubOriginPattern", () => {
   })
 })
 
-describe("buildPageSummaryMarkdown", () => {
+describe("buildPageMarkdown", () => {
   it("renders the header line with url, count, author and date", () => {
-    const md = buildPageSummaryMarkdown({
+    const md = buildPageMarkdown({
       title: "My page",
       url: "https://example.com/p",
       authorName: "alice",
@@ -112,22 +112,24 @@ describe("buildPageSummaryMarkdown", () => {
     assert.match(md, /> https:\/\/example\.com\/p · 1 条批注 · alice · \d{4}-\d{2}-\d{2}/)
   })
 
-  it("numbers annotations and truncates long quotes", () => {
+  it("numbers annotations, truncates long quotes and embeds the full content", () => {
     const long = "x".repeat(300)
-    const md = buildPageSummaryMarkdown({
+    const md = buildPageMarkdown({
       title: "T",
       url: "https://e.com",
       authorName: "a",
       annotations: [
-        ann({ quote: long, data: { type: "edit", content: "fix" } })
+        ann({ quote: long, data: { type: "edit", content: "fix\n\nsecond paragraph" } })
       ]
     })
     assert.match(md, /## 1\. fix/)
     assert.ok(md.includes(`"${"x".repeat(200)}…"`))
     assert.ok(!md.includes("x".repeat(201)))
+    // 正文完整嵌入（而非只取首行）
+    assert.ok(md.includes("second paragraph"))
   })
 
-  it("lists reply counts as a pointer to the Hub", () => {
+  it("renders the reply tree inline as nested quotes", () => {
     const replies: Reply[] = [
       {
         id: "r1",
@@ -139,13 +141,14 @@ describe("buildPageSummaryMarkdown", () => {
         ]
       }
     ]
-    const md = buildPageSummaryMarkdown({
+    const md = buildPageMarkdown({
       title: "T",
       url: "",
       authorName: "a",
       annotations: [ann({ replies })]
     })
-    assert.match(md, /（回复 2 条 → Hub 查看）/)
+    assert.match(md, /> \*\*Bob\*\*：top/)
+    assert.match(md, />\s*>\s*\*\*C\*\*：nested/)
   })
 })
 
@@ -254,7 +257,8 @@ describe("hubCreateWebPage", () => {
       title: "My page",
       visibility: "link",
       annotations: [ann({ replies: [], origin: { pageId: "p0", authorId: "u" } })],
-      summaryMd: "# summary"
+      summaryMd: "# summary",
+      pageMd: "# full markdown"
     })
 
     assert.equal(res.page_id, "w1")
@@ -267,6 +271,10 @@ describe("hubCreateWebPage", () => {
     assert.equal(fd.get("title"), "My page")
     assert.equal(fd.get("visibility"), "link")
     assert.equal(fd.get("summary_md"), "# summary")
+    const mdFile = fd.get("page_md") as File
+    assert.ok(mdFile, "page_md file must be attached")
+    assert.equal(mdFile.name, "page.md")
+    assert.equal(await mdFile.text(), "# full markdown")
     const uploaded = JSON.parse(String(fd.get("annotations")))
     assert.equal(uploaded.length, 1)
     assert.equal(uploaded[0].replies, undefined)

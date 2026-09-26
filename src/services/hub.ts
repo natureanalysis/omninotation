@@ -7,7 +7,8 @@
  *   - POST /api/auth/refresh            refresh 旋转续期
  *   - POST /api/auth/logout             吊销会话
  *   - GET  /api/auth/me                 当前用户
- *   - POST /api/webpages                创建/整页覆盖分享（multipart，幂等键 (owner, url_hash)）
+ *   - POST /api/webpages                创建/整页覆盖分享（multipart，幂等键 (owner, url_hash)）；
+ *                                       同时附带 page_md（完整批注 Markdown 文件，Hub 详情页直接渲染并可下载）
  *   - DELETE /api/webpages/:id          撤回分享
  *   - GET  /api/webpages/subscriptions  插件拉取口（我接收的页面 + 全部批注）
  *   - GET  /api/webpages/:id/comments   页面评论（同步到本地作只读展示）
@@ -35,6 +36,9 @@ const HUB_SYNC_CURSOR_KEY = "hub_sync_since"
 
 /** 视口截图上限（与 hub 端 `webpages.rs::MAX_SNAPSHOT_BYTES` 一致）。 */
 export const MAX_SNAPSHOT_BYTES = 2 * 1024 * 1024
+
+/** 附带 Markdown 文件上限（与 hub 端 `webpages.rs::MAX_PAGE_MD_BYTES` 一致）。 */
+export const MAX_PAGE_MD_BYTES = 2 * 1024 * 1024
 
 /** axiom-hub `PublicUser`（见 src/auth.rs）。 */
 export interface HubUser {
@@ -352,6 +356,8 @@ export interface HubWebPageInput {
   annotations: Annotation[]
   /** 分享时生成的 Markdown 摘要（Hub 详情页展示用）。 */
   summaryMd?: string
+  /** 完整批注 Markdown 文档（multipart 文件 `page_md` 上传，Hub 端可直接渲染与下载）。 */
+  pageMd?: string
   /** 可选视口截图的 data URL（captureVisibleTab 产物，png/jpeg）。 */
   snapshotDataUrl?: string
 }
@@ -379,6 +385,12 @@ export async function hubCreateWebPage(input: HubWebPageInput): Promise<HubWebPa
   fd.append("title", title)
   fd.append("visibility", input.visibility)
   if (input.summaryMd) fd.append("summary_md", input.summaryMd)
+  if (input.pageMd) {
+    const mdBlob = new Blob([input.pageMd], { type: "text/markdown" })
+    if (mdBlob.size > 0 && mdBlob.size <= MAX_PAGE_MD_BYTES) {
+      fd.append("page_md", mdBlob, "page.md")
+    }
+  }
   fd.append("annotations", JSON.stringify(input.annotations.map(stripLocalAnnotationFields)))
   if (input.snapshotDataUrl) {
     const blob = await dataUrlToBlob(input.snapshotDataUrl)
@@ -405,18 +417,27 @@ export async function hubWebPageUrl(pageId: string): Promise<string> {
 }
 
 // ========================
-// Markdown 摘要（分享物料，Hub 详情页展示）
+// Markdown 文档（分享物料：summary_md 字段 + page_md 文件，Hub 详情页直接渲染）
 // ========================
 
-function countRepliesRecursive(replies: Reply[]): number {
-  return replies.reduce((sum, r) => sum + 1 + (r.replies ? countRepliesRecursive(r.replies) : 0), 0)
+/** 递归渲染回复树为嵌套引用块（depth 0 = 一级回复）。 */
+function renderRepliesMd(replies: Reply[], depth: number): string[] {
+  const out: string[] = []
+  for (const r of replies) {
+    const pad = "> ".repeat(depth + 1)
+    out.push(`${pad}**${r.author.name}**：${r.content.replace(/\s+/g, " ").trim()}`)
+    out.push("")
+    if (r.replies?.length) out.push(...renderRepliesMd(r.replies, depth + 1))
+  }
+  return out
 }
 
 /**
- * 由页面批注生成 Markdown 摘要（分享时上传为 `summary_md`）。
- * 刻意不依赖 UI/i18n，保证纯函数、可单测。
+ * 由页面批注生成完整 Markdown 文档（分享时上传为 `summary_md` 字段与
+ * `page_md` 文件）。批注正文原样嵌入（正文本身是 Markdown），回复树渲染为
+ * 嵌套引用。刻意不依赖 UI/i18n，保证纯函数、可单测。
  */
-export function buildPageSummaryMarkdown(input: {
+export function buildPageMarkdown(input: {
   title: string
   url: string
   authorName: string
@@ -440,8 +461,13 @@ export function buildPageSummaryMarkdown(input: {
       lines.push(`> "${truncated}"`)
       lines.push("")
     }
+    const content = ann.data.content.trim()
+    if (content) {
+      lines.push(content)
+      lines.push("")
+    }
     if (ann.replies?.length) {
-      lines.push(`（回复 ${countRepliesRecursive(ann.replies)} 条 → Hub 查看）`)
+      lines.push(...renderRepliesMd(ann.replies, 0))
       lines.push("")
     }
   })
