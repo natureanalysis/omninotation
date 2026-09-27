@@ -2,7 +2,7 @@
   "name": "omninotation",
   "displayName": "OmniNotation",
   "version": "0.1.1",
-  "description": "Universal web page annotation and rewrite system",
+  "description": "Highlights, sticky notes, bookmarks and multi-engine search for any web page. Side Panel, local-first, free and open source.",
   "author": "OmniNotation Team",
   "scripts": {
     "dev": "plasmo dev",
