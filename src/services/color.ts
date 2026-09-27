@@ -123,8 +123,6 @@ export function darkenForDarkMode(rgba: string): string {
 export const LOCAL_ICON_MAP: Record<string, string> = {
   // 自定义映射：引擎 id -> 图标文件名（不含扩展名）
   "google": "google",
-  "bing": "bing",
-  "natanalysis": "natanalysis",
   "wikipedia": "wikipedia-en",
   "wikipedia-zh": "wikipedia-zh",
   "youdao": "youdao",

@@ -1,7 +1,7 @@
 {
   "name": "omninotation",
   "displayName": "OmniNotation",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Universal web page annotation and rewrite system",
   "author": "OmniNotation Team",
   "scripts": {
