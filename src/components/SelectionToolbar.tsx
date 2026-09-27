@@ -4,7 +4,7 @@ import * as anchor from "@/services/anchor"
 import { getDomainConfig } from "@/services/config"
 import { rangeToMarkdown } from "@/services/htmlToMarkdown"
 import * as storage from "@/services/storage"
-import { DEFAULT_ANNOTATION_COLOR, getLocalIconUrl } from "@/services/color"
+import { DEFAULT_ANNOTATION_COLOR, getEngineIconDataUrl } from "@/services/color"
 import { detectLocale, t, type Locale } from "@/services/i18n"
 import type { MarkStyle, ToolbarConfig, ToolbarSearchEngine } from "@/types"
 
@@ -140,22 +140,12 @@ function EngineIcon({ engine, size }: { engine: ToolbarSearchEngine, size: numbe
         }
       } catch {}
 
-      // Priority 2: local assets shipped with the extension
-      try {
-        const localUrl = getLocalIconUrl(engine.id)
-        const res = await fetch(localUrl)
-        if (res.ok && isMounted) {
-          const blob = await res.blob()
-          if (blob.type.startsWith("image/")) {
-            const reader = new FileReader()
-            reader.onloadend = () => {
-              if (isMounted) setImgSrc(reader.result as string)
-            }
-            reader.readAsDataURL(blob)
-            return
-          }
-        }
-      } catch {}
+      // Priority 2: icon shipped (inlined as data URL) with the extension
+      const embedded = getEngineIconDataUrl(engine.id)
+      if (embedded && isMounted) {
+        setImgSrc(embedded)
+        return
+      }
 
       // Priority 3: online fallback (user favicon or domain favicon.ico)
       const fallback = getFallbackIconUrl(engine)
@@ -414,6 +404,13 @@ export function SelectionToolbar({ selection, config, onClose, locale: localePro
     boxShadow: style.shadow,
     color: style.textColor,
     display: "flex",
+    flexDirection: "column",
+    alignItems: "stretch",
+    gap: `${style.gap}px`
+  }
+
+  const rowStyle: React.CSSProperties = {
+    display: "flex",
     alignItems: "center",
     gap: `${style.gap}px`
   }
@@ -437,8 +434,8 @@ export function SelectionToolbar({ selection, config, onClose, locale: localePro
   }
 
   const dividerStyle: React.CSSProperties = {
-    width: "1px",
-    height: `${buttonSize * 0.6}px`,
+    height: "1px",
+    width: "100%",
     backgroundColor: "rgba(0,0,0,0.1)",
     flexShrink: 0
   }
@@ -473,39 +470,41 @@ export function SelectionToolbar({ selection, config, onClose, locale: localePro
       onMouseLeave={startCloseTimer}
       onMouseDown={(e) => e.preventDefault()}
     >
-      {/* Annotation mark styles */}
+      {/* Row 1: Search engines */}
+      {enabledEngines.length > 0 && <div style={rowStyle}>{enabledEngines.map(renderEngineButton)}</div>}
+
+      {/* Row 2: Annotation mark styles */}
       {config.showAnnotations && (
         <>
-          {MARK_STYLES.map(({ key, label: lbl, icon }) => (
+          {enabledEngines.length > 0 && <div style={dividerStyle} />}
+          <div style={rowStyle}>
+            {MARK_STYLES.map(({ key, label: lbl, icon }) => (
+              <button
+                key={key}
+                title={lbl}
+                onClick={() => saveAnnotation(key)}
+                style={buttonStyle}
+              >
+                {icon}
+              </button>
+            ))}
             <button
-              key={key}
-              title={lbl}
-              onClick={() => saveAnnotation(key)}
+              title={L.addComment}
+              onClick={handleAddNote}
               style={buttonStyle}
             >
-              {icon}
+              📝
             </button>
-          ))}
-          <button
-            title={L.addComment}
-            onClick={handleAddNote}
-            style={buttonStyle}
-          >
-            📝
-          </button>
-          <button
-            title={copySuccess ? L.copySuccess : L.copy}
-            onClick={handleCopy}
-            style={buttonStyle}
-          >
-            {copySuccess ? "✓" : "📋"}
-          </button>
-          {enabledEngines.length > 0 && <div style={dividerStyle} />}
+            <button
+              title={copySuccess ? L.copySuccess : L.copy}
+              onClick={handleCopy}
+              style={buttonStyle}
+            >
+              {copySuccess ? "✓" : "📋"}
+            </button>
+          </div>
         </>
       )}
-
-      {/* Search engines */}
-      {enabledEngines.map(renderEngineButton)}
     </div>
   )
 }

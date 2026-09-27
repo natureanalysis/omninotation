@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 
 import * as storage from "@/services/storage"
-import { getLocalIconUrl } from "@/services/color"
+import { getEngineIconDataUrl } from "@/services/color"
 import { detectLocale, t, type Locale } from "@/services/i18n"
 import type { ToolbarConfig, ToolbarSearchEngine, ToolbarTriggerMode, ToolbarLayout, TabOpenMode } from "@/types"
 
@@ -477,7 +477,7 @@ export function ToolbarSettings({ locale: localeProp }: { locale?: Locale } = {}
                               {engine.name.charAt(0).toUpperCase()}
                             </span>
                             <img
-                              src={iconCache[engine.id] || getLocalIconUrl(engine.id)}
+                              src={iconCache[engine.id] || getEngineIconDataUrl(engine.id) || getFaviconUrl(engine.urlTemplate)}
                               alt=""
                               className="w-4 h-4 relative z-10 bg-gray-50 object-contain"
                               onError={(e) => {

@@ -1,4 +1,4 @@
-import { getLocalIconUrl } from "@/services/color"
+import { getEngineIconDataUrl } from "@/services/color"
 import { getLocale, t } from "@/services/i18n"
 import type { Annotation, AnnotationEntry, Bookmark, BookmarkFolder, Group, PageCategory, UserProfile, Reply, Visibility, ToolbarConfig, ToolbarSearchEngine, ToolbarStyle, AnnotationType, MarkStyle } from "@/types"
 
@@ -998,6 +998,26 @@ function mergeEngines(saved: ToolbarSearchEngine[], defaults: ToolbarSearchEngin
   return merged
 }
 
+// 已从内置默认列表中移除的历史引擎。老用户本地可能仍存有这些条目，
+// 需要在读取时清理掉；但若用户曾自定义过其搜索地址，则视为用户自己的引擎保留。
+const REMOVED_DEFAULT_ENGINES: Array<{ id: string; urlTemplate: string }> = [
+  { id: "semantic-scholar", urlTemplate: "https://www.semanticscholar.org/search?q=%s" },
+  { id: "crossref", urlTemplate: "https://search.crossref.org/?q=%s" },
+  { id: "arxiv", urlTemplate: "https://arxiv.org/search/?query=%s&searchtype=all" },
+  { id: "bing", urlTemplate: "https://www.bing.com/search?q=%s" },
+  { id: "natanalysis", urlTemplate: "https://q.natanalysis.com/search?q=%s" }
+]
+
+function pruneRemovedEngines(saved: ToolbarSearchEngine[]): ToolbarSearchEngine[] {
+  const removed = new Map(REMOVED_DEFAULT_ENGINES.map((e) => [e.id, e.urlTemplate]))
+  return saved.filter((engine) => {
+    const originalTemplate = removed.get(engine.id)
+    if (originalTemplate === undefined) return true
+    // 仅剔除「未被用户改动」的历史内建引擎；改过地址的当作自定义引擎保留。
+    return engine.urlTemplate !== originalTemplate
+  })
+}
+
 export async function getToolbarConfig(): Promise<ToolbarConfig> {
   const result = await safeGet(TOOLBAR_CONFIG_KEY)
   const saved = result[TOOLBAR_CONFIG_KEY] as ToolbarConfig | undefined
@@ -1008,7 +1028,9 @@ export async function getToolbarConfig(): Promise<ToolbarConfig> {
     ...defaults,
     ...saved,
     style: { ...defaults.style, ...(saved.style || {}) },
-    engines: saved.engines?.length ? mergeEngines(saved.engines, defaults.engines) : defaults.engines
+    engines: saved.engines?.length
+      ? mergeEngines(pruneRemovedEngines(saved.engines), defaults.engines)
+      : defaults.engines
   }
 }
 
@@ -1051,15 +1073,14 @@ export async function prefetchEngineIcon(engine: ToolbarSearchEngine): Promise<b
   const cached = await getEngineIconCache(engine.id)
   if (cached) return true
 
+  // 已随扩展内联的图标直接可用（工具栏会同步读取），无需在线拉取或写缓存。
+  if (getEngineIconDataUrl(engine.id)) return true
+
   const sources: string[] = []
 
   if (engine.favicon?.startsWith("http") || engine.favicon?.startsWith("data:")) {
     sources.push(engine.favicon)
   }
-
-  try {
-    sources.push(getLocalIconUrl(engine.id))
-  } catch {}
 
   try {
     const domain = new URL(engine.urlTemplate.replace("{q}", "")).hostname

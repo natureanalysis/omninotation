@@ -7,9 +7,13 @@
   "scripts": {
     "dev": "plasmo dev",
     "build": "plasmo build",
+    "prebuild": "node scripts/embed-engine-icons.mjs",
     "package": "plasmo package",
+    "prepackage": "node scripts/embed-engine-icons.mjs",
+    "embed-icons": "node scripts/embed-engine-icons.mjs",
     "test": "node --test tests/hub.test.ts",
-    "download-icons": "node scripts/download-engine-icons.mjs"
+    "download-icons": "node scripts/download-engine-icons.mjs",
+    "postdownload-icons": "node scripts/embed-engine-icons.mjs"
   },
   "dependencies": {
     "@plasmohq/storage": "^1.15.0",

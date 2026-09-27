@@ -2,6 +2,8 @@
 // Color utilities for annotations & UI
 // ========================
 
+import { EMBEDDED_ENGINE_ICONS } from "./engineIcons.generated"
+
 export const DEFAULT_ANNOTATION_COLOR = "rgba(250, 204, 21, 0.3)"
 
 export const COLOR_PRESETS = [
@@ -121,7 +123,7 @@ export function darkenForDarkMode(rgba: string): string {
 // ========================
 
 export const LOCAL_ICON_MAP: Record<string, string> = {
-  // 自定义映射：引擎 id -> 图标文件名（不含扩展名）
+  // 自定义映射：引擎 id -> 内联图标名（assets/icons/<name>.ico）
   "google": "google",
   "wikipedia": "wikipedia-en",
   "wikipedia-zh": "wikipedia-zh",
@@ -131,7 +133,8 @@ export const LOCAL_ICON_MAP: Record<string, string> = {
   "pubmed": "pubmed"
 }
 
-export function getLocalIconUrl(engineId: string): string {
+/** 取随扩展内联打包的引擎图标（构建期 base64，见 scripts/embed-engine-icons.mjs）；无则返回 null。 */
+export function getEngineIconDataUrl(engineId: string): string | null {
   const fileName = LOCAL_ICON_MAP[engineId] || engineId
-  return chrome.runtime.getURL(`icons/${fileName}.ico`)
+  return EMBEDDED_ENGINE_ICONS[fileName] ?? null
 }
