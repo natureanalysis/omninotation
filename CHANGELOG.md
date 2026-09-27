@@ -27,6 +27,8 @@
 ### 其他
 
 - 补充隐私政策文档与单元测试；新增 `build.bat` 一键构建脚本。
+- 修复 `page-identity` 单元测试无法在 Node 下解析路径别名/JSON 导入的问题，并纳入 `npm test`。
+- 清理图标映射死条目与损坏的 `google-scholar.ico`。
 
 ## v0.1.0 — 2025-04
 

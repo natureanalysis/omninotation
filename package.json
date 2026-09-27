@@ -11,7 +11,7 @@
     "package": "plasmo package",
     "prepackage": "node scripts/embed-engine-icons.mjs",
     "embed-icons": "node scripts/embed-engine-icons.mjs",
-    "test": "node --test tests/hub.test.ts",
+    "test": "node --import ./tests/module-hooks.mjs --test tests/hub.test.ts tests/page-identity.test.ts",
     "download-icons": "node scripts/download-engine-icons.mjs",
     "postdownload-icons": "node scripts/embed-engine-icons.mjs"
   },

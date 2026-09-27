@@ -123,11 +123,11 @@ export function darkenForDarkMode(rgba: string): string {
 // ========================
 
 export const LOCAL_ICON_MAP: Record<string, string> = {
-  // 自定义映射：引擎 id -> 内联图标名（assets/icons/<name>.ico）
+  // 引擎 id -> 内联图标名（assets/icons/<name>.ico，构建期 base64 内联）。
+  // google-scholar 下载到的 .ico 是坏文件，复用 google 图标。
   "google": "google",
-  "wikipedia": "wikipedia-en",
+  "wikipedia-en": "wikipedia-en",
   "wikipedia-zh": "wikipedia-zh",
-  "youdao": "youdao",
   "zdic": "zdic",
   "google-scholar": "google",
   "pubmed": "pubmed"
