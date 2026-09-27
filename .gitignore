@@ -34,3 +34,5 @@ dist/
 
 AGENTS.md
 build.bat
+# headless screenshot browser profiles
+.shots-*/
