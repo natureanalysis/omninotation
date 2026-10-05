@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!--
+    OmniNotation Logo v1 — 矢量重建稿
+    依据 assets/logo/SPEC.md 的实测几何参数绘制
+    椭圆率 0.786（偏扁），环线宽 50，断口在右上
+    环用 path 弧线绘制，天然带断口，无需 mask
+  -->
+  <g id="logo" fill="none" stroke="#009775" stroke-width="50" stroke-linecap="butt">
+
+    <!-- 椭圆环：中心 (511.5, 443)，外半宽 252/外半高 198，中线半宽 227/中线半高 173 -->
+    <!-- 断口在 30°–58°（屏幕坐标，右上偏上） -->
+    <path d="M 738.5 443
+             A 227 173 0 1 0 672 320
+             " />
+
+    <!-- 内部横条：400 x 53，间距 38（需单独 fill） -->
+    <g fill="#009775" stroke="none">
+      <rect x="311" y="375" width="400" height="53" />
+      <rect x="311" y="465" width="400" height="53" />
+    </g>
+
+    <!-- 收笔圆点：圆心 (678, 306)，直径 77 -->
+    <circle cx="678" cy="306" r="38.5" fill="#009775" stroke="none" />
+  </g>
+</svg>
