@@ -375,11 +375,12 @@ export async function updateBookmarkTags(url: string, tags: string[]): Promise<v
 }
 
 export function getDefaultPageCategories(): PageCategory[] {
+  // id 必须与 services/categories.ts 播种的内置分类一致，否则关键词建议找不到条目。
   return [
-    { id: "to-read", name: "To Read", icon: "📖", color: "#fbbf24" },
-    { id: "important", name: "Important", icon: "⭐", color: "#ef4444" },
-    { id: "read", name: "Read", icon: "✅", color: "#22c55e" },
-    { id: "annotated", name: "Annotated", icon: "💬", color: "#3b82f6" }
+    { id: "cat-to-read", name: "To Read", icon: "📖", color: "#fbbf24" },
+    { id: "cat-important", name: "Important", icon: "⭐", color: "#ef4444" },
+    { id: "cat-read", name: "Read", icon: "✅", color: "#22c55e" },
+    { id: "cat-annotated", name: "Annotated", icon: "💬", color: "#3b82f6" }
   ]
 }
 
@@ -389,10 +390,6 @@ export async function getPageCategories(): Promise<PageCategory[]> {
   const result = await safeGet(PAGE_CATEGORIES_KEY)
   const saved = result[PAGE_CATEGORIES_KEY] as PageCategory[] | undefined
   return saved && saved.length > 0 ? saved : getDefaultPageCategories()
-}
-
-export async function savePageCategories(categories: PageCategory[]): Promise<void> {
-  await safeSet({ [PAGE_CATEGORIES_KEY]: categories })
 }
 
 export async function setPageCategory(url: string, categoryId: string | undefined): Promise<void> {
@@ -431,10 +428,10 @@ export async function getSuggestedPageCategory(url: string, title = ""): Promise
   const text = `${url} ${title}`.toLowerCase()
 
   const categoryHints: Array<{ id: string; keywords: string[] }> = [
-    { id: "important", keywords: ["paper", "research", "study", "journal", "analysis", "report", "abstract", "doi", "arxiv", "scholar", "pubmed", "nature", "science"] },
-    { id: "to-read", keywords: ["blog", "tutorial", "guide", "learning", "docs", "reference", "manual", "howto", "course", "notes", "wiki"] },
-    { id: "read", keywords: ["wikipedia", "encyclopedia", "article", "news", "readme", "documentation", "overview"] },
-    { id: "annotated", keywords: ["annotation", "highlight", "notes", "memo", "bookmark", "workspace", "project"] }
+    { id: "cat-important", keywords: ["paper", "research", "study", "journal", "analysis", "report", "abstract", "doi", "arxiv", "scholar", "pubmed", "nature", "science"] },
+    { id: "cat-to-read", keywords: ["blog", "tutorial", "guide", "learning", "docs", "reference", "manual", "howto", "course", "notes", "wiki"] },
+    { id: "cat-read", keywords: ["wikipedia", "encyclopedia", "article", "news", "readme", "documentation", "overview"] },
+    { id: "cat-annotated", keywords: ["annotation", "highlight", "notes", "memo", "bookmark", "workspace", "project"] }
   ]
 
   let bestMatch: { category: PageCategory; score: number } | undefined

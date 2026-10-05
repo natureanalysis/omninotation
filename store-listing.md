@@ -48,19 +48,19 @@ Select any text and a compact two-row toolbar appears: annotation tools on one r
 MARKDOWN IMPORT / EXPORT
 Back up and restore everything as readable Markdown files — easy to check, easy to version, easy to move into your note-taking app.
 
-OPTIONAL: SHARE WITH AXIOM HUB
-Sign in to Axiom Hub to share your annotations for a page and to receive others'. Entirely opt-in and off by default: without signing in, nothing ever leaves your browser.
+OPTIONAL: SHARE WITH KNOWEAVE
+Sign in to KnoWeave (knoweave.com) to share your annotations for a page and to receive others'. Entirely opt-in and off by default: without signing in, nothing ever leaves your browser. Accounts are created on the website; the extension only signs you in.
 
 PRIVACY
 • No telemetry, no analytics, no advertising SDK — none at all.
 • Annotations, bookmarks and settings are stored locally in your browser (chrome.storage.local) and removed when you uninstall.
-• The extension contacts a server only when you explicitly sign in to Axiom Hub or click Share.
+• The extension contacts a server only when you explicitly sign in to KnoWeave or click Share.
 • Full privacy policy: https://github.com/natureanalysis/omninotation/blob/main/PRIVACY.md
 
 OPEN SOURCE
 • Source code & changelog: https://github.com/natureanalysis/omninotation
-• Official website: https://researchranked.eu.org/omninotation/
-• Community hub: https://researchranked.eu.org/Axiom-hub
+• Official website: https://knoweave.com/tools/omninotation/
+• Community site: https://knoweave.com
 
 Questions, ideas and bug reports are welcome — use the "Report an issue" link on this page or open an issue on GitHub.
 ```
@@ -109,19 +109,19 @@ OmniNotation 让任何网页都变成你的批注画布，同时完全不改变�
 Markdown 导入导出
 全部数据以 Markdown 文件备份与恢复——可读、可版本管理、可一键迁移到你的笔记软件。
 
-可选：Axiom Hub 分享
-登录 Axiom Hub 后可将某页面的批注公开分享，也可订阅他人的分享。该功能完全自愿、默认关闭——不登录时数据不会离开本机。
+可选：KnoWeave 分享
+登录 KnoWeave（knoweave.com）后可将某页面的批注公开分享，也可接收他人的分享。该功能完全自愿、默认关闭——不登录时数据不会离开本机。账号在网站上注册，扩展内只提供登录。
 
 隐私
 • 不含任何遥测、统计或广告 SDK。
 • 批注、书签与设置均保存在浏览器本地（chrome.storage.local），卸载扩展即清除。
-• 只有在你主动登录 Axiom Hub 或点击分享时，扩展才会与服务器通信。
+• 只有在你主动登录 KnoWeave 或点击分享时，扩展才会与服务器通信。
 • 完整隐私政策：https://github.com/natureanalysis/omninotation/blob/main/PRIVACY.md
 
 开源
 • 源码与更新日志：https://github.com/natureanalysis/omninotation
-• 官方网站：https://researchranked.eu.org/omninotation/
-• Axiom Hub：https://researchranked.eu.org/Axiom-hub
+• 官方网站：https://knoweave.com/tools/omninotation/
+• KnoWeave：https://knoweave.com
 
 欢迎通过本页的「举报问题」入口或 GitHub Issue 反馈建议与问题。
 ```
@@ -134,4 +134,4 @@ Markdown 导入导出
 - **类别**：选「工具」（Productivity 亦可），与单一用途政策一致。
 - **更新说明**：用之前起草的 v0.1.1 精简版即可。
 - **截图**：建议至少 2 张（批注页 + 侧边栏），1280×800 或 640×400。
-- **隐私披露问卷**：勾「不发送用户数据到远程服务器」之外，因 Hub 分享存在用户主动上传，按实际披露「认证信息 + 用户名/显示名」用于账户与分享、不用于分析；数据删除联系人可填 GitHub 仓库 issue 途径。
+- **隐私披露问卷**：勾「不发送用户数据到远程服务器」之外，因 KnoWeave 分享存在用户主动上传，按实际披露「认证信息 + 用户名/显示名」用于账户与分享、不用于分析；数据删除联系人可填 GitHub 仓库 issue 途径。
