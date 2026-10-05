@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!--
+    OmniNotation 应用图标 — 小尺寸光学补偿版（用于 16 / 32 px）
+
+    为什么需要单独一版：
+    主版几何在 32px 下环线仅 ~2.1px、双条 ~2.4px、条间仅 ~1.0px，
+    抗锯齿后两条糊成一条灰带，"圈注文字"语义消失，只剩一个 "C"。
+
+    1024 基准 → 32px 的换算：1 基准px ≈ 0.040 输出px。
+    要让特征在 32px 下"可分辨"，基准尺寸需满足：
+      环线  ≥ 2.8 输出px → ≥ 70 基准px
+      条高  ≥ 3.0 输出px → ≥ 75 基准px
+      条间距≥ 1.6 输出px → ≥ 40 基准px
+    本版按此下限取整：环线 72 / 条高 78 / 间距 40。
+    断口与收笔圆点保留，维持"笔尖收势"的识别点。
+
+    ⚠️ 48px 及以上请使用 omninotation-mark.svg（主版几何）。
+  -->
+  <defs>
+    <mask id="gapMask">
+      <rect x="0" y="0" width="1400" height="1400" fill="#fff"/>
+      <path d="M 511.5 443 L 900 443 L 900 100 Z" fill="#000"/>
+    </mask>
+  </defs>
+
+  <g id="mark" transform="translate(-127.625 -76.25) scale(0.75)">
+    <!-- 环线加粗至 72 -->
+    <ellipse cx="511.5" cy="443" rx="227" ry="173"
+             fill="none" stroke="#14B8A6" stroke-width="72"
+             mask="url(#gapMask)"/>
+
+    <!-- 被圈注的两行文字：加粗至 78，间距 40，整体垂直居中于 443 -->
+    <g fill="#14B8A6">
+      <rect x="347" y="345" width="329" height="78"/>
+      <rect x="347" y="463" width="329" height="78"/>
+    </g>
+
+    <!-- 收笔圆点随环线加粗，等比放大至 ⌀92 -->
+    <circle cx="678" cy="300" r="46" fill="#064E3B"/>
+  </g>
+</svg>

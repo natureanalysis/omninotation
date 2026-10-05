@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!--
+    OmniNotation 应用图标 — 仅标志图形（无标准字）
+    图形按 1024 基准等比缩放 0.75（占画布 ~74% 宽），整体居中于 512 画布
+    四周最小留白 ≈ 67px / 13%，保证 16px 下笔画不糊
+    断口遮罩仅挖掉环的右上 45° 楔形，不影响内部横条
+  -->
+  <defs>
+    <mask id="gapMask">
+      <rect x="0" y="0" width="1200" height="1200" fill="#fff"/>
+      <path d="M 511.5 443 L 820 443 L 820 190 Z" fill="#000"/>
+    </mask>
+  </defs>
+
+  <g id="mark" transform="translate(-127.625 -76.25) scale(0.75)">
+    <!-- 椭圆环：中心 (511.5,443)，中线半轴 227×173，线宽 50 -->
+    <ellipse cx="511.5" cy="443" rx="227" ry="173"
+             fill="none" stroke="#14B8A6" stroke-width="50"
+             mask="url(#gapMask)"/>
+
+    <!-- 被圈注的两行文字：内腔约束下宽度 343 / 332 -->
+    <g fill="#14B8A6">
+      <rect x="340" y="375" width="343" height="53"/>
+      <rect x="346" y="465" width="332" height="53"/>
+    </g>
+
+    <!-- 收笔圆点：⌀77，圆心 (678,306) -->
+    <circle cx="678" cy="306" r="38.5" fill="#064E3B"/>
+  </g>
+</svg>
