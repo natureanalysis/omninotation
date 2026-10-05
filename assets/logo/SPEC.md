@@ -78,20 +78,20 @@
 
 圆点直径约为环线宽的 **1.5 倍**。
 
-### 标准字
+### 标准字（已转曲）
 
 | 项 | 定稿值 |
 |---|---|
 | 文字 | `OmniNotation` |
-| 位置 | x 93–927, y 666–765 |
-| 宽 × 高 | 835 × 100 |
-| 距图标底部 | **25** |
-| 居中关系 | 字标中心 510，相对图标中心 511.5 略偏左 |
-| 字体 | Archivo / Inter / Helvetica Neue 一类几何无衬线 |
-| 字重 | 600 |
-| font-size / 字距 | 118 / −0.6 |
+| 位置 | x 93–928，y 666–765 |
+| 宽 × 高 | 835 × 99（cap height） |
+| 基线 | y = 765 |
+| 字体来源 | Segoe UI Semibold（weight 600） |
+| 字距 | −0.6（1024 基准 px） |
+| 状态 | **已转曲为 12 条 `<path>`**，无字体依赖 |
 
-> SVG 中标准字仍是 `<text>`（依赖系统字体），跨平台字形可能不一致。正式物料请在 Figma/Illustrator 中转曲后替换。
+SVG 里标准字不再是 `<text>`，而是转曲后的 path，跨平台渲染完全一致。
+换字体请重新跑 `_tools/outline_wordmark.py`，**不要改回 `<text>`**。
 
 ---
 
@@ -101,20 +101,39 @@
 
 | 文件 | 尺寸 | 用途 |
 |---|---|---|
-| `omninotation-logo-v1.svg` | 1024 viewBox | **权威源文件** |
-| `omninotation-logo-v1.png` | 1024 | 完整标识位图 |
-| `omninotation-logo-512/256/128/48/32/16.png` | 对应 | 降采样位图 |
+| `omninotation-logo-v1.svg` | 1024 viewBox | **浅色底权威源文件** |
+| `omninotation-logo-v1.png` | 1024 | 浅色底位图 |
+| `omninotation-logo-{512,256,128,48,32,16}.png` | 对应 | 浅色底降采样 |
+| `omninotation-logo-v1-dark.svg` | 1024 viewBox | **深色底源文件** |
+| `omninotation-logo-v1-dark.png` | 1024 | 深色底位图 |
+| `omninotation-logo-dark-{512,256,128,48,32,16}.png` | 对应 | 深色底降采样 |
+| `omninotation-wordmark-outlined.svg` | 1024 viewBox | 仅字标（转曲产物） |
 
 ### 纯图形 mark（无标准字，用于应用图标 / favicon）
 
 | 文件 | 用途 |
 |---|---|
 | `omninotation-mark.svg` | 主版几何，**48px 及以上**一律用此版 |
-| `omninotation-mark-512/128/48.png` | 主版位图 |
+| `omninotation-mark-{512,128,48}.png` | 主版位图 |
+| `omninotation-mark-dark.svg` | 深色底版（圆点换浅薄荷白） |
+| `omninotation-mark-dark-{512,128,48}.png` | 深色底位图 |
 | `omninotation-mark-small.svg` | 小尺寸光学补偿版，仅 16 / 32px |
-| `omninotation-mark-small-512/32/16.png` | 补偿版位图 |
+| `omninotation-mark-small-{512,32,16}.png` | 补偿版位图 |
 
-`assets/icon.png`（512）与 `assets/icon128.png` 已指向 `omninotation-mark-512/128.png`，旧的紫色菱形已替换。
+### 其他
+
+| 文件 | 规格 | 用途 |
+|---|---|---|
+| `omninotation-store-main-440x280.png` | 440×280 | Chrome Web Store 主图 |
+| `omninotation-logo-preview.png` | 1600×1000 | 品牌资产总览（浅底 + 深底） |
+
+`assets/icon.png`（512）与 `assets/icon128.png` 是扩展的商店图标，**按项目决定保留原有紫色菱形**，未用本 Logo 覆盖。本目录下的 mark 资产作为品牌物料备用。
+
+> 需要切换到 Logo 图标时：把 `omninotation-mark-512.png` / `omninotation-mark-128.png` 复制到 `assets/` 下即可（`_tools/render_assets.py` 中已留出开关，默认注释）。
+
+### 深色底为什么必须换色
+
+松绿 `#064E3B` 在近黑底（`#0C1A16`）上的对比度极低，**收笔圆点会糊进背景、识别点彻底丢失**。深色版把圆点与字标一起换成 `#E8F5F1`，环与内横条保持青绿不变。
 
 ### 为什么要小尺寸补偿版
 
@@ -128,7 +147,7 @@
 | 条高 | ≥ 3.0px | ≥ 75 | **78** |
 | 条间距 | ≥ 1.6px | ≥ 40 | **40** |
 
-补偿版同时把圆点放大到 ⌀92 并收窄条宽以适配加粗后的内腔。断口与收笔圆点保留，维持识别点。
+补偿版同时把圆点放大到⌀92 并收窄条宽以适配加粗后的内腔。
 
 实测 32px 逐行不透明度剖面（中心列）：上壁 3px / 条1 4px / 缝 2px / 条2 4px / 下壁 4px —— 两条清晰可分辨。
 
@@ -147,7 +166,7 @@
 | 图标（中） | 48 × 48 | PNG 透明底 | `omninotation-mark-48.png` |
 | 图标（大） | 128 × 128 | PNG 透明底 | `omninotation-mark-128.png` |
 
-> `assets/icon.png`（512）与 `assets/icon128.png` 原本是**紫色渐变菱形**，现已替换为新标志的纯图形 mark。
+> `assets/icon.png`（512）与 `assets/icon128.png` 保持原有的**紫色渐变菱形**，未改用本标志。商店图标的取舍见「三、文件清单」。
 
 ### 其他
 
@@ -155,6 +174,7 @@
 |---|---|---|
 | README 顶图 | 96 × 96 | `omninotation-mark-128.png` 降采样 |
 | 官网 / 社交 | 512 × 512 | `omninotation-mark-512.png` |
+| 商店主图 | 440 × 280 | `omninotation-store-main-440x280.png` |
 | 完整标识（带字） | 1024 | `omninotation-logo-v1.svg` / `.png` |
 | 源文件 | SVG | viewBox `0 0 1024 1024` |
 
@@ -166,7 +186,7 @@
 
 | 尺寸 | 应使用 | 验证结果 |
 |---|---|---|
-| 48px 及以上 | 主版 |✅ 环 / 双条 / 圆点全部清晰 |
+| 48px 及以上 | 主版 | ✅ 环 / 双条 / 圆点全部清晰 |
 | 32px | 补偿版 | ✅ 剖面 3/4/2/4/4px，两条可分辨 |
 | 16px | 补偿版 | ⚠️ 语义仍可读，但细节已损失；favicon 场景可接受 |
 
@@ -174,9 +194,40 @@
 
 ---
 
-## 六、遗留问题
+## 六、渲染管线
 
-1. **标准字未转曲**：SVG 里是 `<text>`，依赖系统字体。正式发布物料前需在 Figma/Illustrator 中转曲。
-2. **深色模式资产未产出**：规范已给色值，但深色版 PNG/SVG 尚未导出。
-3. **商店主图未排版**：440×280 需要专门的横向版式（图标 + 字 + 副标），不是现有 1:1 资产的缩放。
-4. **位图不可用于品牌延伸**：任何正式物料都必须从 `omninotation-logo-v1.svg` 重建，不要从 PNG 放大或抠图。
+所有 PNG 都从 SVG 经无头渲染降采样得到，**不从位图放大、不手工重绘**。这是保证色值与几何零偏差的唯一可靠路径。
+
+```
+SVG（唯一事实来源）
+  → Edge headless 渲染
+  → 裁透明边 + 固定视觉留白（主版 6.25%，补偿版 7.8%）
+  → Pillow LANCZOS 降采样
+  → 逐像素校验主色数量
+```
+
+| 脚本 | 作用 |
+|---|---|
+| `_tools/outline_wordmark.py` | 字标转曲（fontTools → path） |
+| `_tools/build_full_logo.py <light\|dark>` | 组装完整标识 SVG |
+| `_tools/build_mark_dark.py` | 生成深色底 mark SVG |
+| `_tools/render_assets.py [all\|full\|mark]` | 渲染 + 导出 + 逐像素校验 |
+| `_tools/build_store_main.py` | 440×280 商店主图 |
+
+前置：Edge（`C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe`）、Pillow、fontTools。
+
+### 三个已踩过的坑
+
+1. **Edge 截图是异步的** —— 进程返回 rc=0 时文件还没写完，必须轮询等待，否则误判失败。
+2. **Edge 无法写入 E: 盘** —— 必须先把 SVG 拷到系统临时目录再渲染。
+3. **嵌套 TransformPen 会覆盖平移** —— 字标转曲时若用两层 `TransformPen`，内层的逐字平移会被外层缩放覆盖，12 个字全部叠在原位。正确做法是**单一仿射变换**：`x' = LEFT + (penX + glyphX) * sx`。
+
+---
+
+## 七、遗留问题
+
+1. **商店主图的两处取舍**（当前定稿版已知）：
+   - 图形无断口 —— 抽取 SVG 片段时 `mask` 引用被清除（片段不含 `<defs>`，残留引用会让浏览器静默丢弃元素），断口需另行重建。当前 440×280 上断口不可见，但识别主特征（环 + 双条 + 圆点）完整。
+   - 内横条为空心 —— 外层统一 `fill="none"` 导致。横条实心需要在片段内保留自身 `fill`（`keep_fill=True`），当前按已定稿版保留原样。
+2. **位图不可用于品牌延伸**：任何正式物料都必须从 SVG 重建，不要从 PNG 放大或抠图。
+3. **社区媒体素材**（440×280 之外的小图、社交方形图）尚未产出。
