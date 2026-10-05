@@ -244,30 +244,27 @@ const translations = {
     // background/index.ts – context menu on links
     contextMenuCopyLinkName: "复制链接名称",
 
-    // Axiom Hub（登录 / 分享）
-    hubSectionTitle: "Axiom Hub 账户",
-    hubAccountHint: "登录后可将批注分享到 Axiom Hub 社区。",
+    // KnoWeave（登录 / 分享）
+    hubSectionTitle: "KnoWeave 账户",
+    hubAccountHint: "登录 KnoWeave 后可分享本页批注、同步你收到的批注。",
     hubNotLoggedIn: "未登录",
     hubLoggedInAs: (name: string) => `已登录：${name}`,
     hubUsername: "用户名",
     hubUsernamePlaceholder: "3–32 位字母、数字、_ 或 -",
     hubPassword: "密码",
     hubPasswordPlaceholder: "至少 8 位",
-    hubInvitationCode: "邀请码（可选）",
     hubLogin: "登录",
-    hubRegister: "注册",
+    hubSigningIn: "登录中…",
+    hubRegisterOnSite: "没有账号？前往 knoweave.com 注册",
     hubLogout: "退出登录",
-    hubBaseUrl: "Hub 地址",
-    hubSaveBaseUrl: "保存地址",
     hubLoginSuccess: "登录成功",
-    hubRegisterSuccess: "注册成功",
     hubAuthFailed: (msg: string) => `操作失败：${msg}`,
-    hubPermissionDenied: "未获得该 Hub 地址的访问权限",
-    hubNeedLogin: "请先在「设置」中登录 Axiom Hub",
-    hubPrivacyNote: "分享时会将当前页面的批注、标题与网址发送到 Axiom Hub，仅在点击分享后发送。",
+    hubPermissionDenied: "未获得 knoweave.com 的访问权限",
+    hubNeedLogin: "请先在「设置」中登录 KnoWeave",
+    hubPrivacyNote: "分享时会将当前页面的批注、标题与网址发送到 KnoWeave，仅在点击分享后发送。",
     hubSharePage: "分享本页批注",
     hubShareSingle: "分享此批注",
-    hubShareDialogTitle: "分享到 Axiom Hub",
+    hubShareDialogTitle: "分享到 KnoWeave",
     hubShareVisibility: "可见范围",
     hubVisPublic: "公开",
     hubVisPublicNote: "公开分享需管理员审核通过后才会出现在公开列表",
@@ -288,7 +285,7 @@ const translations = {
     hubCopyShareLink: "复制链接",
     hubClose: "关闭",
     hubRemoteBadge: "Hub",
-    hubRemoteBadgeTitle: "来自 Axiom Hub 的远程批注",
+    hubRemoteBadgeTitle: "来自 KnoWeave 的远程批注",
     hubSyncNow: "同步接收的批注",
     hubSyncNowTitle: "立即拉取我接收的网页批注",
     hubSyncing: "同步中…",
@@ -298,12 +295,12 @@ const translations = {
     authorFilterMine: "我",
     authorFilterTitle: "按作者筛选",
 
-    // Axiom Hub（隐私入口 / 分享增强）
+    // KnoWeave（隐私入口 / 分享增强）
     hubPrivacyPolicy: "隐私政策",
     hubMyShares: "我的分享",
     hubNoShares: "暂无分享记录",
     hubDeleteShare: "删除",
-    hubDeleteShareConfirm: "删除后该分享将从 Hub 移除，确定继续？",
+    hubDeleteShareConfirm: "删除后该分享将从 KnoWeave 移除，确定继续？",
     hubShareDeleted: "已删除"
   },
   en: {
@@ -545,30 +542,27 @@ const translations = {
     // background/index.ts – context menu on links
     contextMenuCopyLinkName: "Copy Link Name",
 
-    // Axiom Hub (account / sharing)
-    hubSectionTitle: "Axiom Hub Account",
-    hubAccountHint: "Sign in to share annotations to the Axiom Hub community.",
+    // KnoWeave (account / sharing)
+    hubSectionTitle: "KnoWeave Account",
+    hubAccountHint: "Sign in to KnoWeave to share this page's annotations and sync the ones you receive.",
     hubNotLoggedIn: "Not signed in",
     hubLoggedInAs: (name: string) => `Signed in as ${name}`,
     hubUsername: "Username",
     hubUsernamePlaceholder: "3–32 chars: letters, digits, _ or -",
     hubPassword: "Password",
     hubPasswordPlaceholder: "At least 8 characters",
-    hubInvitationCode: "Invitation code (optional)",
     hubLogin: "Sign in",
-    hubRegister: "Register",
+    hubSigningIn: "Signing in…",
+    hubRegisterOnSite: "No account? Register at knoweave.com",
     hubLogout: "Sign out",
-    hubBaseUrl: "Hub URL",
-    hubSaveBaseUrl: "Save URL",
     hubLoginSuccess: "Signed in",
-    hubRegisterSuccess: "Registered",
     hubAuthFailed: (msg: string) => `Failed: ${msg}`,
-    hubPermissionDenied: "Access to this Hub URL was not granted",
-    hubNeedLogin: "Sign in to Axiom Hub in Settings first",
-    hubPrivacyNote: "Sharing sends this page's annotations, title and URL to Axiom Hub, only after you click share.",
+    hubPermissionDenied: "Access to knoweave.com was not granted",
+    hubNeedLogin: "Sign in to KnoWeave in Settings first",
+    hubPrivacyNote: "Sharing sends this page's annotations, title and URL to KnoWeave, only after you click share.",
     hubSharePage: "Share page annotations",
     hubShareSingle: "Share this annotation",
-    hubShareDialogTitle: "Share to Axiom Hub",
+    hubShareDialogTitle: "Share to KnoWeave",
     hubShareVisibility: "Visibility",
     hubVisPublic: "Public",
     hubVisPublicNote: "Public shares appear in the public list only after admin approval",
@@ -589,7 +583,7 @@ const translations = {
     hubCopyShareLink: "Copy link",
     hubClose: "Close",
     hubRemoteBadge: "Hub",
-    hubRemoteBadgeTitle: "Received from Axiom Hub",
+    hubRemoteBadgeTitle: "Received from KnoWeave",
     hubSyncNow: "Sync received annotations",
     hubSyncNowTitle: "Pull annotations from pages I accepted",
     hubSyncing: "Syncing…",
@@ -599,12 +593,12 @@ const translations = {
     authorFilterMine: "Me",
     authorFilterTitle: "Filter by author",
 
-    // Axiom Hub (privacy entry / share enhancements)
+    // KnoWeave (privacy entry / share enhancements)
     hubPrivacyPolicy: "Privacy policy",
     hubMyShares: "My shares",
     hubNoShares: "No shares yet",
     hubDeleteShare: "Delete",
-    hubDeleteShareConfirm: "This will remove the share from the Hub. Continue?",
+    hubDeleteShareConfirm: "This will remove the share from KnoWeave. Continue?",
     hubShareDeleted: "Deleted"
   }
 }
@@ -832,7 +826,7 @@ export interface TranslationKeys {
   exportReplies: string
   // background/index.ts
   contextMenuCopyLinkName: string
-  // Axiom Hub (account / sharing)
+  // KnoWeave (account / sharing)
   hubSectionTitle: string
   hubAccountHint: string
   hubNotLoggedIn: string
@@ -841,14 +835,11 @@ export interface TranslationKeys {
   hubUsernamePlaceholder: string
   hubPassword: string
   hubPasswordPlaceholder: string
-  hubInvitationCode: string
   hubLogin: string
-  hubRegister: string
+  hubSigningIn: string
+  hubRegisterOnSite: string
   hubLogout: string
-  hubBaseUrl: string
-  hubSaveBaseUrl: string
   hubLoginSuccess: string
-  hubRegisterSuccess: string
   hubAuthFailed: (msg: string) => string
   hubPermissionDenied: string
   hubNeedLogin: string

@@ -7,7 +7,7 @@ import type { Annotation } from "@/types"
 type Feedback = { kind: "ok" | "err"; text: string } | null
 
 /**
- * 分享对话框：把选中的批注上传为一次网页批注分享（Axiom Hub `/api/webpages`）。
+ * 分享对话框：把选中的批注上传为一次网页批注分享（KnoWeave `/api/webpages`）。
  *
  * 上传字段（multipart）：url / title / summary_md / visibility /
  * annotations（JSON 数组）/ page_md（完整批注 Markdown 文件，Hub 直接渲染）/

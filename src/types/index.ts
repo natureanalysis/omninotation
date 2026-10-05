@@ -47,7 +47,7 @@ export interface Annotation {
   createdAt: string
   updatedAt?: string
   replies?: Reply[]
-  /** 来自 Axiom Hub 的远程批注标识（本地自建批注无此字段）。 */
+  /** 来自 KnoWeave 的远程批注标识（本地自建批注无此字段）。 */
   origin?: AnnotationOrigin
 }
 

@@ -6,9 +6,9 @@ import { detectLocale, t, type Locale } from "@/services/i18n"
 type Feedback = { kind: "ok" | "err"; text: string } | null
 
 /**
- * 侧边栏「设置」里的 Axiom Hub 账户区：登录 / 注册 / 登出 + Hub 基址配置。
+ * 侧边栏「设置」里的 KnoWeave 账户区：登录 / 登出，注册在网站上完成。
  *
- * 凭据经 `hub.ts` 直接 POST 到 Hub，access/refresh token 只落 chrome.storage.local；
+ * 凭据经 `hub.ts` 直接 POST 到固化的 knoweave.com，access/refresh token 只落 chrome.storage.local；
  * 组件自身不缓存密码。
  */
 export function HubAccount({ locale: localeProp }: { locale?: Locale }) {
@@ -16,11 +16,8 @@ export function HubAccount({ locale: localeProp }: { locale?: Locale }) {
   const L = t(locale)
 
   const [user, setUser] = useState<hub.HubUser | null>(null)
-  const [baseUrl, setBaseUrl] = useState(hub.DEFAULT_HUB_BASE_URL)
-  const [mode, setMode] = useState<"login" | "register">("login")
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
-  const [invitation, setInvitation] = useState("")
   const [busy, setBusy] = useState(false)
   const [feedback, setFeedback] = useState<Feedback>(null)
   const [history, setHistory] = useState<hub.HubShareRecord[]>([])
@@ -28,10 +25,9 @@ export function HubAccount({ locale: localeProp }: { locale?: Locale }) {
   useEffect(() => {
     let alive = true
     void (async () => {
-      const [storedUser, base] = await Promise.all([hub.getHubUser(), hub.getHubBaseUrl()])
+      const storedUser = await hub.getHubUser()
       if (!alive) return
       setUser(storedUser)
-      setBaseUrl(base)
       // 会话可能已过期：向 /api/auth/me 校验一次（离线时保持本地显示）
       if (storedUser) {
         const fresh = await hub.hubMe()
@@ -60,7 +56,7 @@ export function HubAccount({ locale: localeProp }: { locale?: Locale }) {
     }
   }, [])
 
-  const handleAuth = async () => {
+  const handleLogin = async () => {
     if (busy) return
     const granted = await hub.ensureHubHostPermission()
     if (!granted) {
@@ -79,13 +75,10 @@ export function HubAccount({ locale: localeProp }: { locale?: Locale }) {
     setBusy(true)
     setFeedback(null)
     try {
-      const resp =
-        mode === "login"
-          ? await hub.hubLogin(name, password)
-          : await hub.hubRegister(name, password, invitation)
+      const resp = await hub.hubLogin(name, password)
       setUser(resp.user)
       setPassword("")
-      setFeedback({ kind: "ok", text: mode === "login" ? L.hubLoginSuccess : L.hubRegisterSuccess })
+      setFeedback({ kind: "ok", text: L.hubLoginSuccess })
     } catch (e) {
       setFeedback({ kind: "err", text: L.hubAuthFailed(e instanceof Error ? e.message : String(e)) })
     } finally {
@@ -105,15 +98,8 @@ export function HubAccount({ locale: localeProp }: { locale?: Locale }) {
     }
   }
 
-  const handleSaveBaseUrl = async () => {
-    if (busy) return
-    const granted = await hub.ensureHubHostPermission(baseUrl)
-    if (!granted) {
-      setFeedback({ kind: "err", text: L.hubPermissionDenied })
-      return
-    }
-    await hub.setHubBaseUrl(baseUrl)
-    setFeedback({ kind: "ok", text: L.hubSaveBaseUrl })
+  const handleOpenSignup = () => {
+    chrome.tabs.create({ url: hub.HUB_SIGNUP_URL }).catch(() => {})
   }
 
   const handleOpenShare = (record: hub.HubShareRecord) => {
@@ -203,20 +189,6 @@ export function HubAccount({ locale: localeProp }: { locale?: Locale }) {
       ) : (
         <div className="space-y-2">
           <p className="text-[10px] text-slate-400 leading-snug">{L.hubAccountHint}</p>
-          <div className="flex gap-1">
-            {(["login", "register"] as const).map((m) => (
-              <button
-                key={m}
-                onClick={() => setMode(m)}
-                className={`flex-1 py-1 text-[11px] rounded-md border transition-colors ${
-                  mode === m
-                    ? "border-blue-200 bg-blue-50 text-blue-700 font-medium"
-                    : "border-slate-200 text-slate-500 hover:bg-slate-50"
-                }`}>
-                {m === "login" ? L.hubLogin : L.hubRegister}
-              </button>
-            ))}
-          </div>
           <input
             value={username}
             onChange={(e) => setUsername(e.target.value)}
@@ -229,42 +201,25 @@ export function HubAccount({ locale: localeProp }: { locale?: Locale }) {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder={L.hubPasswordPlaceholder}
-            autoComplete={mode === "login" ? "current-password" : "new-password"}
+            autoComplete="current-password"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void handleLogin()
+            }}
             className={inputCls}
           />
-          {mode === "register" && (
-            <input
-              value={invitation}
-              onChange={(e) => setInvitation(e.target.value)}
-              placeholder={L.hubInvitationCode}
-              className={inputCls}
-            />
-          )}
           <button
-            onClick={handleAuth}
+            onClick={handleLogin}
             disabled={busy}
             className="w-full py-1.5 text-[11px] font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors">
-            {busy ? L.hubSharing : mode === "login" ? L.hubLogin : L.hubRegister}
+            {busy ? L.hubSigningIn : L.hubLogin}
+          </button>
+          <button
+            onClick={handleOpenSignup}
+            className="w-full py-1 text-[10px] text-blue-600 hover:text-blue-800 hover:underline underline-offset-2">
+            {L.hubRegisterOnSite}
           </button>
         </div>
       )}
-
-      <div className="space-y-1 pt-1 border-t border-slate-100">
-        <label className="text-[10px] text-slate-400">{L.hubBaseUrl}</label>
-        <div className="flex gap-1">
-          <input
-            value={baseUrl}
-            onChange={(e) => setBaseUrl(e.target.value)}
-            className={inputCls}
-          />
-          <button
-            onClick={handleSaveBaseUrl}
-            disabled={busy}
-            className="shrink-0 px-2 py-1 text-[10px] rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50">
-            {L.hubSaveBaseUrl}
-          </button>
-        </div>
-      </div>
 
       <div className="space-y-1 pt-1 border-t border-slate-100">
         <span className="text-[10px] text-slate-400">{L.hubMyShares}</span>

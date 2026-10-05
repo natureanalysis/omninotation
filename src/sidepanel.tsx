@@ -3,10 +3,13 @@ import "katex/dist/katex.min.css"
 import "./style.css"
 
 import { initLocale, setLocale, t, getLocale, type Locale } from "@/services/i18n"
+import { getCategories } from "@/services/categories"
 import * as hub from "@/services/hub"
 import * as storage from "@/services/storage"
 import type { Annotation } from "@/types"
+import type { PageCategory } from "@/types/category"
 import { AnnotationCard } from "@/components/AnnotationCard"
+import { CategoryIconSwatch } from "@/components/CategoryIconSwatch"
 import { CategoryPanel } from "@/components/CategoryPanel"
 import { HubAccount } from "@/components/HubAccount"
 import { HubShareDialog } from "@/components/HubShareDialog"
@@ -41,7 +44,7 @@ export default function SidePanel() {
   const [searchQuery, setSearchQuery] = useState("")
   const [bookmarkTags, setBookmarkTags] = useState<string[]>([])
   const [recentColors, setRecentColors] = useState<string[]>([])
-  const [pageCategories, setPageCategories] = useState<ReturnType<typeof storage.getDefaultPageCategories>>([])
+  const [pageCategories, setPageCategories] = useState<PageCategory[]>([])
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
   const [suggestedCategoryId, setSuggestedCategoryId] = useState<string | null>(null)
   const [showTagInput, setShowTagInput] = useState(false)
@@ -162,7 +165,7 @@ export default function SidePanel() {
         setBookmarkTags(currentBm?.tags || [])
         setRecentColors(await storage.getRecentColors())
         setSelectedCategoryId(currentBm?.categoryId ?? null)
-        const categories = await storage.getPageCategories()
+        const categories = await getCategories(locale)
         setPageCategories(categories)
         const suggested = await storage.getSuggestedPageCategory(pageUrl, pageTitle)
         setSuggestedCategoryId(suggested?.id ?? null)
@@ -207,6 +210,29 @@ export default function SidePanel() {
     }
     chrome.storage.onChanged.addListener(listener)
     return () => chrome.storage.onChanged.removeListener(listener)
+  }, [])
+
+  // 语言切换后重新取分类：内置分类名要跟着界面语言走
+  useEffect(() => {
+    void getCategories(locale).then(setPageCategories)
+  }, [locale])
+
+  // Chrome 141 之前没有关闭侧边栏的 API：图标再次点击时由后台确认面板已开，
+  // 发来这条消息让面板文档自己关闭。
+  useEffect(() => {
+    const listener = (message: any) => {
+      if (message?.type !== "CLOSE_SIDE_PANEL") return
+      const windowId = message.windowId
+      if (typeof windowId === "number") {
+        chrome.windows.getCurrent((w) => {
+          if (w.id === windowId) window.close()
+        })
+        return
+      }
+      window.close()
+    }
+    chrome.runtime.onMessage.addListener(listener)
+    return () => chrome.runtime.onMessage.removeListener(listener)
   }, [])
 
   useEffect(() => {
@@ -408,8 +434,7 @@ export default function SidePanel() {
     if (!bookmarked) setBookmarked(true)
     const bm = (await storage.getBookmarks()).find((b) => b.url === url)
     setBookmarkTime(bm?.createdAt || null)
-    const updatedCategories = await storage.getPageCategories()
-    setPageCategories(updatedCategories)
+    setPageCategories(await getCategories(locale))
   }
 
   const handleAddSticky = async () => {
@@ -751,7 +776,7 @@ export default function SidePanel() {
                   }`}
                 >
                   <span className="flex items-center gap-2 min-w-0">
-                    <span className="text-base" style={{ color: category.color }}>{category.icon}</span>
+                    <CategoryIconSwatch color={category.color} glyph={category.icon} size={16} />
                     <span className="text-[11px] font-medium text-gray-700 truncate">{category.name}</span>
                   </span>
                   <span

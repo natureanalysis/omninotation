@@ -2,21 +2,18 @@ import assert from "node:assert/strict"
 import { beforeEach, describe, it } from "node:test"
 
 import {
-  DEFAULT_HUB_BASE_URL,
+  HUB_BASE_URL,
+  HUB_ORIGIN_PATTERN,
   HubApiError,
   addShareRecord,
   buildPageMarkdown,
-  getHubBaseUrl,
   getHubSession,
   getShareHistory,
   groupHubComments,
   hubCreateWebPage,
   hubPullSubscriptions,
   hubWebPageUrl,
-  hubOriginPattern,
-  normalizeHubBaseUrl,
   removeShareRecord,
-  setHubBaseUrl,
   stripLocalAnnotationFields
 } from "../src/services/hub.ts"
 import type { Annotation, Reply } from "../src/types.ts"
@@ -70,33 +67,14 @@ beforeEach(installChromeMock)
 
 // ─── 纯函数 ───
 
-describe("normalizeHubBaseUrl", () => {
-  it("falls back to the default for empty input", () => {
-    assert.equal(normalizeHubBaseUrl(""), DEFAULT_HUB_BASE_URL)
-    assert.equal(normalizeHubBaseUrl("   "), DEFAULT_HUB_BASE_URL)
+describe("固化的 KnoWeave 地址", () => {
+  it("targets knoweave.com over HTTPS", () => {
+    assert.equal(HUB_BASE_URL, "https://knoweave.com")
+    assert.ok(HUB_BASE_URL.startsWith("https://"))
   })
 
-  it("strips trailing slashes", () => {
-    assert.equal(normalizeHubBaseUrl("https://h.example///"), "https://h.example")
-    assert.equal(normalizeHubBaseUrl("  https://h.example/  "), "https://h.example")
-  })
-
-  it("keeps the sub-path prefix intact", () => {
-    assert.equal(
-      normalizeHubBaseUrl(`${DEFAULT_HUB_BASE_URL}/`),
-      DEFAULT_HUB_BASE_URL
-    )
-  })
-})
-
-describe("hubOriginPattern", () => {
-  it("derives an origin wildcard from the base url", () => {
-    assert.equal(hubOriginPattern(DEFAULT_HUB_BASE_URL), "https://researchranked.eu.org/*")
-    assert.equal(hubOriginPattern("http://127.0.0.1:17370"), "http://127.0.0.1:17370/*")
-  })
-
-  it("falls back to the default origin on invalid input", () => {
-    assert.equal(hubOriginPattern("not a url"), "https://researchranked.eu.org/*")
+  it("declares the origin wildcard that the manifest grants", () => {
+    assert.equal(HUB_ORIGIN_PATTERN, "https://knoweave.com/*")
   })
 })
 
@@ -167,16 +145,7 @@ describe("stripLocalAnnotationFields", () => {
 
 // ─── 存储 / 会话 ───
 
-describe("hub settings storage", () => {
-  it("returns the default base url when unset", async () => {
-    assert.equal(await getHubBaseUrl(), DEFAULT_HUB_BASE_URL)
-  })
-
-  it("persists and normalizes a custom base url", async () => {
-    await setHubBaseUrl("https://custom.example/")
-    assert.equal(await getHubBaseUrl(), "https://custom.example")
-  })
-
+describe("hub session storage", () => {
   it("returns null session when not signed in", async () => {
     assert.equal(await getHubSession(), null)
   })
@@ -227,7 +196,7 @@ describe("share history", () => {
 
 describe("hubWebPageUrl", () => {
   it("builds a hash-route link to the webpage detail page", async () => {
-    assert.equal(await hubWebPageUrl("abc"), `${DEFAULT_HUB_BASE_URL}/#/webpage/abc`)
+    assert.equal(await hubWebPageUrl("abc"), `${HUB_BASE_URL}/#/webpage/abc`)
   })
 })
 
@@ -263,7 +232,7 @@ describe("hubCreateWebPage", () => {
 
     assert.equal(res.page_id, "w1")
     assert.ok(captured)
-    assert.equal(captured!.url, `${DEFAULT_HUB_BASE_URL}/api/webpages`)
+    assert.equal(captured!.url, `${HUB_BASE_URL}/api/webpages`)
     assert.equal(captured!.init.method, "POST")
 
     const fd = captured!.init.body as FormData

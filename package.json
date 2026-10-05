@@ -40,7 +40,7 @@
   },
   "manifest": {
     "host_permissions": [
-      "https://researchranked.eu.org/*"
+      "https://knoweave.com/*"
     ],
     "optional_host_permissions": [
       "https://*/*",

@@ -107,7 +107,7 @@ chrome.runtime.onInstalled.addListener(() => {
 setupContextMenu()
 registerHubSyncAlarm()
 
-// ===== Axiom Hub 接收同步（hub-share-plan §3.2 / §5.2）=====
+// ===== KnoWeave 接收同步（hub-share-plan §3.2 / §5.2）=====
 
 const HUB_SYNC_ALARM = "hub-sync"
 const HUB_SYNC_PERIOD_MIN = 15
@@ -208,11 +208,48 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   }
 })
 
-// Click extension icon to open Chrome side panel
+// Click extension icon to toggle the Chrome side panel.
+// `sidePanel.close()` (Chrome 141+) is the documented way; older builds have no
+// close API, so we fall back to asking the open panel document to close itself.
+type SidePanelWithClose = typeof chrome.sidePanel & {
+  close?: (options: { windowId?: number; tabId?: number }) => Promise<void>
+}
+
+async function isSidePanelOpen(windowId: number): Promise<boolean> {
+  if (typeof chrome.runtime.getContexts !== "function") return false
+  try {
+    const contexts = await chrome.runtime.getContexts({
+      contextTypes: ["SIDE_PANEL" as chrome.runtime.ContextType],
+      windowIds: [windowId]
+    })
+    return contexts.length > 0
+  } catch {
+    return false
+  }
+}
+
+async function closeSidePanel(windowId: number): Promise<void> {
+  const panel = chrome.sidePanel as SidePanelWithClose
+  if (typeof panel.close === "function") {
+    try {
+      await panel.close({ windowId })
+      return
+    } catch {
+      // 关闭失败（例如该窗口用的是标签页级面板）→ 走回落路径
+    }
+  }
+  chrome.runtime.sendMessage({ type: "CLOSE_SIDE_PANEL", windowId }).catch(() => {})
+}
+
 chrome.action.onClicked.addListener(async (tab) => {
+  const windowId = tab.windowId
+  if (typeof windowId === "number" && (await isSidePanelOpen(windowId))) {
+    await closeSidePanel(windowId)
+    return
+  }
   await ensureOptionalPageAccess(tab)
-  if (tab.windowId) {
-    chrome.sidePanel.open({ windowId: tab.windowId }).catch(() => {})
+  if (typeof windowId === "number") {
+    chrome.sidePanel.open({ windowId }).catch(() => {})
   }
 })
 

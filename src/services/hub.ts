@@ -1,34 +1,40 @@
 /**
- * Axiom Hub 客户端。
+ * KnoWeave 客户端。
  *
- * 对接 axiom-hub 后端（Rust/axum）的鉴权与网页批注分享接口：
+ * 对接 knoweave.com 后端的鉴权与网页批注分享接口：
  *   - POST /api/auth/login              登录（返回 access JWT + refresh token）
- *   - POST /api/auth/register           注册
  *   - POST /api/auth/refresh            refresh 旋转续期
  *   - POST /api/auth/logout             吊销会话
  *   - GET  /api/auth/me                 当前用户
  *   - POST /api/webpages                创建/整页覆盖分享（multipart，幂等键 (owner, url_hash)）；
- *                                       同时附带 page_md（完整批注 Markdown 文件，Hub 详情页直接渲染并可下载）
+ *                                       同时附带 page_md（完整批注 Markdown 文件，站点详情页直接渲染并可下载）
  *   - DELETE /api/webpages/:id          撤回分享
  *   - GET  /api/webpages/subscriptions  插件拉取口（我接收的页面 + 全部批注）
  *   - GET  /api/webpages/:id/comments   页面评论（同步到本地作只读展示）
  *
+ * 注册不在插件内完成：账号创建在 knoweave.com 网站上进行，插件只负责登录。
+ *
  * 合规要点（对齐 Chrome Web Store 政策）：
  *   - 凭据只存 chrome.storage.local（MV3 service worker 无 localStorage），不明文落盘密码；
- *   - 所有请求走 HTTPS，且只访问用户在设置里确认过的 Hub 源（最小权限）；
- *   - 数据外发由用户主动点击「分享」触发，符合 axiom-hub「显式授权」红线。
+ *   - 所有请求走 HTTPS，且只访问固化的 KnoWeave 源（最小权限）；
+ *   - 数据外发由用户主动点击「分享」触发，符合 KnoWeave「显式授权」红线。
  */
 
 import type { Annotation, Reply } from "@/types"
 
-/** 生产 Hub 站点根（nginx 子路径反代，API 前缀随之）。 */
-export const DEFAULT_HUB_BASE_URL = "https://researchranked.eu.org/Axiom-hub"
+/** KnoWeave 站点根（地址固化，不提供自定义实例入口）。 */
+export const HUB_BASE_URL = "https://knoweave.com"
+
+/** 源通配符，与 manifest `host_permissions` 保持一致。 */
+export const HUB_ORIGIN_PATTERN = "https://knoweave.com/*"
+
+/** 注册入口（插件内只做登录，注册跳转站点）。 */
+export const HUB_SIGNUP_URL = "https://knoweave.com/"
 
 /** 公开隐私政策地址（Chrome 商店「隐私规范」页需填写同一 URL）。 */
 export const PRIVACY_POLICY_URL =
   "https://github.com/natureanalysis/omninotation/blob/main/PRIVACY.md"
 
-const HUB_BASE_KEY = "hub_base_url"
 const HUB_ACCESS_KEY = "hub_access_token"
 const HUB_REFRESH_KEY = "hub_refresh_token"
 const HUB_USER_KEY = "hub_user"
@@ -40,7 +46,7 @@ export const MAX_SNAPSHOT_BYTES = 2 * 1024 * 1024
 /** 附带 Markdown 文件上限（与 hub 端 `webpages.rs::MAX_PAGE_MD_BYTES` 一致）。 */
 export const MAX_PAGE_MD_BYTES = 2 * 1024 * 1024
 
-/** axiom-hub `PublicUser`（见 src/auth.rs）。 */
+/** KnoWeave `PublicUser`（见 hub 后端 src/auth.rs）。 */
 export interface HubUser {
   user_id: string
   username: string
@@ -51,7 +57,7 @@ export interface HubUser {
   avatar_url?: string | null
 }
 
-/** `POST /api/auth/login|register|refresh` 的响应体。 */
+/** `POST /api/auth/login|refresh` 的响应体。 */
 export interface HubAuthResponse {
   access_token: string
   refresh_token: string
@@ -138,46 +144,18 @@ function storageRemove(keys: string | string[]): Promise<void> {
 }
 
 // ========================
-// 基址配置
+// 访问权限（地址固化，只声明 KnoWeave 一个源）
 // ========================
 
-export function normalizeHubBaseUrl(url: string): string {
-  const trimmed = (url || "").trim()
-  if (!trimmed) return DEFAULT_HUB_BASE_URL
-  return trimmed.replace(/\/+$/, "")
-}
-
-export async function getHubBaseUrl(): Promise<string> {
-  const result = await storageGet(HUB_BASE_KEY)
-  const stored = result[HUB_BASE_KEY] as string | undefined
-  return stored ? normalizeHubBaseUrl(stored) : DEFAULT_HUB_BASE_URL
-}
-
-export async function setHubBaseUrl(url: string): Promise<void> {
-  await storageSet({ [HUB_BASE_KEY]: normalizeHubBaseUrl(url) })
-}
-
-/** 把基址折算成 chrome 权限通配符（如 `https://host/*`）。 */
-export function hubOriginPattern(baseUrl: string): string {
-  try {
-    const u = new URL(normalizeHubBaseUrl(baseUrl))
-    return `${u.protocol}//${u.host}/*`
-  } catch {
-    return "https://researchranked.eu.org/*"
-  }
-}
-
 /**
- * 确认已获得目标 Hub 源的访问权限（默认域名已在 manifest 声明，通常直接通过）。
- * 自定义基址时需要用户在点击手势中授权，故应在按钮 onClick 内尽早调用。
+ * 确认已获得 KnoWeave 源的访问权限（manifest 已声明，通常直接通过）。
+ * 自定义基址不再支持，因此这里没有参数。
  */
-export async function ensureHubHostPermission(baseUrl?: string): Promise<boolean> {
-  const base = baseUrl ?? (await getHubBaseUrl())
-  const origin = hubOriginPattern(base)
+export async function ensureHubHostPermission(): Promise<boolean> {
   try {
-    const has = await chrome.permissions.contains({ origins: [origin] })
+    const has = await chrome.permissions.contains({ origins: [HUB_ORIGIN_PATTERN] })
     if (has) return true
-    return await chrome.permissions.request({ origins: [origin] })
+    return await chrome.permissions.request({ origins: [HUB_ORIGIN_PATTERN] })
   } catch (e) {
     console.warn("[OmniNotation] hub permission request failed:", e)
     return false
@@ -239,8 +217,7 @@ async function refreshAccessToken(): Promise<string | null> {
     const session = await getHubSession()
     if (!session?.refreshToken) return null
     try {
-      const base = await getHubBaseUrl()
-      const res = await fetch(`${base}/api/auth/refresh`, {
+      const res = await fetch(`${HUB_BASE_URL}/api/auth/refresh`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ refresh_token: session.refreshToken })
@@ -264,17 +241,16 @@ async function refreshAccessToken(): Promise<string | null> {
 
 /** 带 Bearer 的请求；401 时静默续期并重试一次（MV3 唤醒后 token 可能已过期）。 */
 async function authFetch(path: string, init: RequestInit = {}, allowRetry = true): Promise<Response> {
-  const base = await getHubBaseUrl()
   const session = await getHubSession()
   const headers = new Headers(init.headers)
   if (session?.accessToken) headers.set("Authorization", `Bearer ${session.accessToken}`)
-  const res = await fetch(`${base}${path}`, { ...init, headers })
+  const res = await fetch(`${HUB_BASE_URL}${path}`, { ...init, headers })
   if (res.status === 401 && allowRetry) {
     const token = await refreshAccessToken()
     if (token) {
       const retryHeaders = new Headers(init.headers)
       retryHeaders.set("Authorization", `Bearer ${token}`)
-      return fetch(`${base}${path}`, { ...init, headers: retryHeaders })
+      return fetch(`${HUB_BASE_URL}${path}`, { ...init, headers: retryHeaders })
     }
   }
   return res
@@ -285,31 +261,10 @@ async function authFetch(path: string, init: RequestInit = {}, allowRetry = true
 // ========================
 
 export async function hubLogin(username: string, password: string): Promise<HubAuthResponse> {
-  const base = await getHubBaseUrl()
-  const res = await fetch(`${base}/api/auth/login`, {
+  const res = await fetch(`${HUB_BASE_URL}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password })
-  })
-  if (!res.ok) throw new HubApiError(res.status, await readErrorMessage(res))
-  const data = (await res.json()) as HubAuthResponse
-  await saveHubSession(data)
-  return data
-}
-
-export async function hubRegister(
-  username: string,
-  password: string,
-  invitationCode?: string
-): Promise<HubAuthResponse> {
-  const base = await getHubBaseUrl()
-  const payload: Record<string, string> = { username, password }
-  const code = invitationCode?.trim()
-  if (code) payload.invitation_code = code
-  const res = await fetch(`${base}/api/auth/register`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
   })
   if (!res.ok) throw new HubApiError(res.status, await readErrorMessage(res))
   const data = (await res.json()) as HubAuthResponse
@@ -322,8 +277,7 @@ export async function hubLogout(): Promise<void> {
   await clearHubSession()
   if (session?.accessToken && session.refreshToken) {
     try {
-      const base = await getHubBaseUrl()
-      await fetch(`${base}/api/auth/logout`, {
+      await fetch(`${HUB_BASE_URL}/api/auth/logout`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -410,10 +364,9 @@ export async function hubDeleteWebPage(pageId: string): Promise<void> {
   if (!res.ok) throw new HubApiError(res.status, await readErrorMessage(res))
 }
 
-/** 网页分享详情页链接（Hub 前端为 hash 路由 `#/webpage/:id`）。 */
+/** 网页分享详情页链接（KnoWeave 前端为 hash 路由 `#/webpage/:id`）。 */
 export async function hubWebPageUrl(pageId: string): Promise<string> {
-  const base = await getHubBaseUrl()
-  return `${base}/#/webpage/${pageId}`
+  return `${HUB_BASE_URL}/#/webpage/${pageId}`
 }
 
 // ========================
