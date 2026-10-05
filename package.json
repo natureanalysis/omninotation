@@ -7,10 +7,11 @@
   "scripts": {
     "dev": "plasmo dev",
     "build": "plasmo build",
-    "prebuild": "node scripts/embed-engine-icons.mjs",
+    "prebuild": "node scripts/embed-engine-icons.mjs && node scripts/build-app-icons.mjs",
     "package": "plasmo package",
-    "prepackage": "node scripts/embed-engine-icons.mjs",
+    "prepackage": "node scripts/embed-engine-icons.mjs && node scripts/build-app-icons.mjs",
     "embed-icons": "node scripts/embed-engine-icons.mjs",
+    "app-icons": "node scripts/build-app-icons.mjs",
     "test": "node scripts/keyparity.check.cjs && node --import ./tests/module-hooks.mjs --test tests/hub.test.ts tests/page-identity.test.ts tests/color.test.ts tests/categories.test.ts tests/storage-write.test.ts",
     "download-icons": "node scripts/download-engine-icons.mjs",
     "postdownload-icons": "node scripts/embed-engine-icons.mjs"
@@ -39,6 +40,22 @@
     "typescript": "^5.3.3"
   },
   "manifest": {
+    "icons": {
+      "16": "../assets/app-icon/16.png",
+      "32": "../assets/app-icon/32.png",
+      "48": "../assets/app-icon/48.png",
+      "64": "../assets/app-icon/64.png",
+      "128": "../assets/app-icon/128.png"
+    },
+    "action": {
+      "default_icon": {
+        "16": "../assets/app-icon/16.png",
+        "32": "../assets/app-icon/32.png",
+        "48": "../assets/app-icon/48.png",
+        "64": "../assets/app-icon/64.png",
+        "128": "../assets/app-icon/128.png"
+      }
+    },
     "host_permissions": [
       "https://knoweave.com/*"
     ],

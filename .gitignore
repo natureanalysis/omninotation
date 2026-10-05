@@ -26,6 +26,9 @@ out/
 build/
 dist/
 
+# 由 prebuild 从 assets/icon.png 降采样生成，不入库（scripts/build-app-icons.mjs）
+/assets/app-icon/
+
 # plasmo
 .plasmo
 

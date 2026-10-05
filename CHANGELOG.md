@@ -24,6 +24,10 @@
 - README 与商店文案去掉不存在的功能宣称；隐私文档修正后端并不支持的「定向」可见范围。
 - 应用图标换成新品牌 mark（含 16/32/48 的光学补偿版）。
 
+### 图标构建
+
+- **16px 工具栏图标修复**：Plasmo 从 `assets/icon.png` 自动派生各尺寸时，产出的 16px 只剩上半部形状、alpha 均值仅 19（32/48/128 正常），标准 DPI 下工具栏图标几乎不可见，v0.1.1 线上包即如此。改由 `scripts/build-app-icons.mjs` 用面积平均 + 预乘 alpha 导出 `assets/app-icon/{16,32,48,64,128}.png`，并在 manifest 的 `icons` / `action.default_icon` 显式引用；脚本带可读性下限校验，某尺寸糊掉就直接让构建失败。
+
 ### 测试
 
 - `npm test` 纳入 i18n 键位一致性校验（此前只打印不失败），并补齐 `color` / `categories` / `storage-write` 单测；并发写测试以「关掉锁就挂」反向验证过。
