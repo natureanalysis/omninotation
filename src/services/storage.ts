@@ -310,6 +310,8 @@ export async function getHubAcceptedPages(): Promise<string[]> {
 /**
  * 接收集合对账：上次接收但本次不在列表里的页面 → 整页清理本地远程批注
  * （对应「取消接收」与 Hub 端撤回；单条删除走 tombstone，两者不冲突）。
+ *
+ * 只可在全量拉取的响应上调用：增量响应本身就不含未变更的页面。
  */
 export async function reconcileAcceptedPages(currentIds: string[]): Promise<void> {
   const prev = await getHubAcceptedPages()

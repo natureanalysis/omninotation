@@ -39,6 +39,7 @@ const HUB_ACCESS_KEY = "hub_access_token"
 const HUB_REFRESH_KEY = "hub_refresh_token"
 const HUB_USER_KEY = "hub_user"
 const HUB_SYNC_CURSOR_KEY = "hub_sync_since"
+const HUB_SYNC_FULL_AT_KEY = "hub_sync_last_full_at"
 
 /** 视口截图上限（与 hub 端 `webpages.rs::MAX_SNAPSHOT_BYTES` 一致）。 */
 export const MAX_SNAPSHOT_BYTES = 2 * 1024 * 1024
@@ -516,6 +517,17 @@ export async function getHubSyncCursor(): Promise<string | null> {
 
 export async function setHubSyncCursor(rfc3339: string): Promise<void> {
   await storageSet({ [HUB_SYNC_CURSOR_KEY]: rfc3339 })
+}
+
+/** 上次「全量拉取」的时间戳：接收集合的对账只在全量拉取后做。 */
+export async function getHubLastFullSyncAt(): Promise<number | null> {
+  const result = await storageGet(HUB_SYNC_FULL_AT_KEY)
+  const value = result[HUB_SYNC_FULL_AT_KEY]
+  return typeof value === "number" ? value : null
+}
+
+export async function setHubLastFullSyncAt(timestamp: number): Promise<void> {
+  await storageSet({ [HUB_SYNC_FULL_AT_KEY]: timestamp })
 }
 
 // ========================

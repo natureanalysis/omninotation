@@ -115,16 +115,24 @@ const HUB_SYNC_PERIOD_MIN = 15
 const HUB_TAB_SYNC_MIN_INTERVAL_MS = 60_000
 let lastTabSyncAt = 0
 
+const HUB_FULL_SYNC_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000
+
 /**
  * 拉取我接收的网页批注并合并到本地。
- * 幂等：由 Hub `content_hash` 判变更；tombstone 防复活；撤回的页面整页清理。
+ * 幂等：由 Hub `content_hash` 判变更；tombstone 防复活。
+ *
+ * 接收集合的对账（撤回/取消接收 → 整页清理）只能在全量拉取后做：
+ * 带 `since` 的响应只含「本次有变更」的页面，未变更的页面不在列表里，
+ * 若据此对账会把完好数据当成已撤回清空，而游标已推进则永不再回来。
  */
 async function syncHubSubscriptions(): Promise<"ok" | "skipped" | "error"> {
   try {
     const session = await hub.getHubSession()
     if (!session) return "skipped"
     const since = await hub.getHubSyncCursor()
-    const feed = await hub.hubPullSubscriptions(since || undefined)
+    const lastFullAt = await hub.getHubLastFullSyncAt()
+    const fullSync = !since || !lastFullAt || Date.now() - lastFullAt > HUB_FULL_SYNC_INTERVAL_MS
+    const feed = await hub.hubPullSubscriptions(fullSync ? undefined : since || undefined)
     for (const page of feed.pages) {
       let comments: hub.HubWebPageComment[] = []
       try {
@@ -138,7 +146,10 @@ async function syncHubSubscriptions(): Promise<"ok" | "skipped" | "error"> {
         hub.groupHubComments(comments)
       )
     }
-    await storage.reconcileAcceptedPages(feed.pages.map((p) => p.page_id))
+    if (fullSync) {
+      await storage.reconcileAcceptedPages(feed.pages.map((p) => p.page_id))
+      await hub.setHubLastFullSyncAt(Date.now())
+    }
     await hub.setHubSyncCursor(feed.now)
     return "ok"
   } catch (e) {
@@ -388,7 +399,8 @@ async function updateActionIcon(tabId: number, url: string | undefined) {
 
   if (isBookmarked) {
     chrome.action.setBadgeBackgroundColor({ tabId, color: baseColor })
-    chrome.action.setBadgeText({ tabId, text: category?.icon || "★" })
+    // 分类图标存的是字形名（"bookmark"/"star"），不能直接当徽标文字用
+    chrome.action.setBadgeText({ tabId, text: category?.name.trim().slice(0, 1) || "★" })
   } else {
     chrome.action.setBadgeText({ tabId, text: "" })
   }

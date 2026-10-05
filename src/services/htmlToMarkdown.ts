@@ -99,9 +99,10 @@ function processNode(node: Node): string {
 
     // Code block
     case "pre": {
-      if (!trimmed) return ""
-      // Try to detect language from class
+      // 取原始 textContent：子节点走 processNode 会把换行与缩进折叠成单个空格
       const codeEl = el.querySelector("code")
+      const raw = ((codeEl || el).textContent || "").replace(/\s+$/, "")
+      if (!raw.trim()) return ""
       let lang = ""
       if (codeEl) {
         const classes = codeEl.className.split(/\s+/)
@@ -113,7 +114,7 @@ function processNode(node: Node): string {
           }
         }
       }
-      return `\n\`\`\`${lang}\n${trimmed}\n\`\`\`\n`
+      return `\n\`\`\`${lang}\n${raw}\n\`\`\`\n`
     }
 
     // Links

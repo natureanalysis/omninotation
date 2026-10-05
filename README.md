@@ -75,7 +75,7 @@ Key highlights:
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/jiangnan2025/omninotation.git
+   git clone https://github.com/natureanalysis/omninotation.git
    cd omninotation
    ```
 
@@ -281,7 +281,7 @@ OmniNotation 是一款 Chrome 浏览器扩展，将任意网页变成可批注�
 ### 快速开始
 
 ```bash
-git clone https://github.com/jiangnan2025/omninotation.git
+git clone https://github.com/natureanalysis/omninotation.git
 cd omninotation
 npm install
 node scripts/download-engine-icons.mjs

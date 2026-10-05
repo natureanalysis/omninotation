@@ -80,7 +80,7 @@ function FolderTreeItem({
   return (
     <div>
       <div
-        className={`flex items-center gap-1 px-2 py-1 rounded cursor-pointer text-sm ${
+        className={`group flex items-center gap-1 px-2 py-1 rounded cursor-pointer text-sm ${
           isSelected ? "bg-blue-100 text-blue-800" : "hover:bg-gray-100 text-gray-700"
         }`}
         style={{ paddingLeft: `${8 + level * 16}px` }}
@@ -96,8 +96,9 @@ function FolderTreeItem({
         <span className="truncate">📁 {folder.name}</span>
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(folder.id) }}
-          className="ml-auto text-[10px] text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100"
-          style={{ opacity: isSelected ? undefined : 0 }}>
+          className={`ml-auto text-[10px] text-gray-300 hover:text-red-500 ${
+            isSelected ? "" : "opacity-0 group-hover:opacity-100"
+          }`}>
           ×
         </button>
       </div>

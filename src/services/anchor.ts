@@ -21,7 +21,7 @@ export function resolveRange(
   hint?: number
 ): Range | null {
   try {
-    const range = textQuote.toRange(root, selector, hint ? { hint } : undefined)
+    const range = textQuote.toRange(root, selector, hint !== undefined ? { hint } : undefined)
     return range
   } catch (e) {
     console.error("[OmniNotation] Failed to resolve range:", e)

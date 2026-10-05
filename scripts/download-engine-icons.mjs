@@ -126,7 +126,8 @@ async function main() {
     const destPath = join(ICONS_DIR, `${engine.id}.ico`)
     let success = false
 
-    const sources = engine.sources || getDomainSources(engine.urlTemplate)
+    // engines.json 里的空数组是真值，必须按长度判断才会走兜底源
+    const sources = engine.sources?.length ? engine.sources : getDomainSources(engine.urlTemplate)
 
     for (const source of sources) {
       try {
