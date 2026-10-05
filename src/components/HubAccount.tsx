@@ -14,11 +14,18 @@ type Feedback = { kind: "ok" | "err"; text: string } | null
 export function HubAccount({ locale: localeProp }: { locale?: Locale }) {
   const locale = localeProp ?? detectLocale()
   const L = t(locale)
+  const VIS_LABEL: Record<hub.HubVisibility, string> = {
+    public: L.hubVisPublic,
+    link: L.hubVisLink,
+    followers: L.hubVisFollowers
+  }
 
   const [user, setUser] = useState<hub.HubUser | null>(null)
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
-  const [busy, setBusy] = useState(false)
+  // 逐操作忙碌态：同步一次可能要十几秒，不该把登录/登出/删除一起灰掉。
+  const [busy, setBusy] = useState({ login: false, logout: false, sync: false })
+  const [deletingPageId, setDeletingPageId] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<Feedback>(null)
   const [history, setHistory] = useState<hub.HubShareRecord[]>([])
 
@@ -57,7 +64,7 @@ export function HubAccount({ locale: localeProp }: { locale?: Locale }) {
   }, [])
 
   const handleLogin = async () => {
-    if (busy) return
+    if (busy.login) return
     const granted = await hub.ensureHubHostPermission()
     if (!granted) {
       setFeedback({ kind: "err", text: L.hubPermissionDenied })
@@ -72,7 +79,7 @@ export function HubAccount({ locale: localeProp }: { locale?: Locale }) {
       setFeedback({ kind: "err", text: L.hubAuthFailed(L.hubPasswordPlaceholder) })
       return
     }
-    setBusy(true)
+    setBusy((prev) => ({ ...prev, login: true }))
     setFeedback(null)
     try {
       const resp = await hub.hubLogin(name, password)
@@ -82,19 +89,19 @@ export function HubAccount({ locale: localeProp }: { locale?: Locale }) {
     } catch (e) {
       setFeedback({ kind: "err", text: L.hubAuthFailed(e instanceof Error ? e.message : String(e)) })
     } finally {
-      setBusy(false)
+      setBusy((prev) => ({ ...prev, login: false }))
     }
   }
 
   const handleLogout = async () => {
-    if (busy) return
-    setBusy(true)
+    if (busy.logout) return
+    setBusy((prev) => ({ ...prev, logout: true }))
     try {
       await hub.hubLogout()
       setUser(null)
       setFeedback(null)
     } finally {
-      setBusy(false)
+      setBusy((prev) => ({ ...prev, logout: false }))
     }
   }
 
@@ -107,9 +114,9 @@ export function HubAccount({ locale: localeProp }: { locale?: Locale }) {
   }
 
   const handleDeleteShare = async (record: hub.HubShareRecord) => {
-    if (busy) return
+    if (deletingPageId) return
     if (!window.confirm(L.hubDeleteShareConfirm)) return
-    setBusy(true)
+    setDeletingPageId(record.pageId)
     try {
       // 服务端可能已不存在（404），本地记录仍要清掉
       await hub.hubDeleteWebPage(record.pageId)
@@ -119,14 +126,14 @@ export function HubAccount({ locale: localeProp }: { locale?: Locale }) {
       await hub.removeShareRecord(record.pageId)
       setHistory((prev) => prev.filter((r) => r.pageId !== record.pageId))
       setFeedback({ kind: "ok", text: L.hubShareDeleted })
-      setBusy(false)
+      setDeletingPageId(null)
     }
   }
 
   /** 手动触发一次「接收的批注」同步（走后台 service worker）。 */
   const handleSyncNow = async () => {
-    if (busy) return
-    setBusy(true)
+    if (busy.sync) return
+    setBusy((prev) => ({ ...prev, sync: true }))
     setFeedback(null)
     try {
       const resp = await chrome.runtime.sendMessage({ type: "HUB_SYNC_NOW" })
@@ -143,7 +150,7 @@ export function HubAccount({ locale: localeProp }: { locale?: Locale }) {
         text: L.hubSyncFailed(e instanceof Error ? e.message : String(e))
       })
     } finally {
-      setBusy(false)
+      setBusy((prev) => ({ ...prev, sync: false }))
     }
   }
 
@@ -174,14 +181,14 @@ export function HubAccount({ locale: localeProp }: { locale?: Locale }) {
           </div>
           <button
             onClick={handleSyncNow}
-            disabled={busy}
+            disabled={busy.sync}
             title={L.hubSyncNowTitle}
             className="w-full py-1.5 text-[11px] font-medium rounded-md border border-blue-200 text-blue-600 hover:bg-blue-50 disabled:opacity-50 transition-colors">
-            {busy ? L.hubSyncing : L.hubSyncNow}
+            {busy.sync ? L.hubSyncing : L.hubSyncNow}
           </button>
           <button
             onClick={handleLogout}
-            disabled={busy}
+            disabled={busy.logout}
             className="w-full py-1.5 text-[11px] font-medium rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">
             {L.hubLogout}
           </button>
@@ -209,9 +216,9 @@ export function HubAccount({ locale: localeProp }: { locale?: Locale }) {
           />
           <button
             onClick={handleLogin}
-            disabled={busy}
+            disabled={busy.login}
             className="w-full py-1.5 text-[11px] font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors">
-            {busy ? L.hubSigningIn : L.hubLogin}
+            {busy.login ? L.hubSigningIn : L.hubLogin}
           </button>
           <button
             onClick={handleOpenSignup}
@@ -236,7 +243,8 @@ export function HubAccount({ locale: localeProp }: { locale?: Locale }) {
                     {record.title}
                   </p>
                   <p className="text-[9px] text-slate-400">
-                    {record.visibility} · {new Date(record.createdAt).toLocaleDateString()}
+                    {VIS_LABEL[record.visibility] ?? record.visibility} ·{" "}
+                    {new Date(record.createdAt).toLocaleDateString(locale)}
                   </p>
                 </div>
                 <button
@@ -247,7 +255,7 @@ export function HubAccount({ locale: localeProp }: { locale?: Locale }) {
                 </button>
                 <button
                   onClick={() => handleDeleteShare(record)}
-                  disabled={busy}
+                  disabled={deletingPageId !== null}
                   title={L.hubDeleteShare}
                   className="shrink-0 text-[10px] text-slate-400 hover:text-red-500 px-1 disabled:opacity-40">
                   🗑

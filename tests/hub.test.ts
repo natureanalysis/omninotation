@@ -7,6 +7,7 @@ import {
   HubApiError,
   addShareRecord,
   buildPageMarkdown,
+  ensureHubHostPermission,
   getHubSession,
   getShareHistory,
   groupHubComments,
@@ -21,9 +22,14 @@ import type { Annotation, Reply } from "../src/types.ts"
 // ─── chrome.storage.local mock ───
 
 let store: Record<string, any> = {}
+/** 记录权限 API 的调用顺序与参数，用于断言「已授权就不打扰用户」。 */
+const permCalls: { method: string; origins: string[] }[] = []
 
-function installChromeMock(): void {
+function installChromeMock(
+  { granted = true, requestResult = true }: { granted?: boolean; requestResult?: boolean } = {}
+): void {
   store = {}
+  permCalls.length = 0
   ;(globalThis as any).chrome = {
     storage: {
       local: {
@@ -47,7 +53,16 @@ function installChromeMock(): void {
       onChanged: { addListener() {}, removeListener() {} }
     },
     runtime: { lastError: undefined },
-    permissions: { contains: async () => true, request: async () => true }
+    permissions: {
+      async contains({ origins }: { origins: string[] }) {
+        permCalls.push({ method: "contains", origins })
+        return granted
+      },
+      async request({ origins }: { origins: string[] }) {
+        permCalls.push({ method: "request", origins })
+        return requestResult
+      }
+    }
   }
 }
 
@@ -63,7 +78,7 @@ function ann(partial: Partial<Annotation> = {}): Annotation {
   }
 }
 
-beforeEach(installChromeMock)
+beforeEach(() => installChromeMock())
 
 // ─── 纯函数 ───
 
@@ -75,6 +90,38 @@ describe("固化的 KnoWeave 地址", () => {
 
   it("declares the origin wildcard that the manifest grants", () => {
     assert.equal(HUB_ORIGIN_PATTERN, "https://knoweave.com/*")
+  })
+})
+
+describe("ensureHubHostPermission", () => {
+  it("已授权时只查询一次，不再打扰用户", async () => {
+    installChromeMock({ granted: true })
+    assert.equal(await ensureHubHostPermission(), true)
+    assert.deepEqual(
+      permCalls.map((c) => c.method),
+      ["contains"]
+    )
+    assert.deepEqual(permCalls[0].origins, [HUB_ORIGIN_PATTERN])
+  })
+
+  it("未授权时按固化域发起申请，并透传用户的选择", async () => {
+    installChromeMock({ granted: false, requestResult: true })
+    assert.equal(await ensureHubHostPermission(), true)
+    assert.deepEqual(
+      permCalls.map((c) => c.method),
+      ["contains", "request"]
+    )
+    assert.deepEqual(permCalls[1].origins, [HUB_ORIGIN_PATTERN])
+
+    // 用户点了拒绝 → 必须返回 false，调用方据此提示「未获得访问权限」
+    installChromeMock({ granted: false, requestResult: false })
+    assert.equal(await ensureHubHostPermission(), false)
+  })
+
+  it("permissions API 不可用时按未授权处理", async () => {
+    installChromeMock()
+    delete (globalThis as any).chrome.permissions
+    assert.equal(await ensureHubHostPermission(), false)
   })
 })
 
