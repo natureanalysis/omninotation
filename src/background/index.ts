@@ -209,24 +209,29 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 })
 
 // Click extension icon to toggle the Chrome side panel.
-// `sidePanel.close()` (Chrome 141+) is the documented way; older builds have no
-// close API, so we fall back to asking the open panel document to close itself.
+// `runtime.getContexts()` reports SIDE_PANEL contexts with windowId = -1, so the
+// open state is tracked from the panel document itself: it opens a long-lived
+// port and tells us which window it lives in.
+const PANEL_PORT_NAME = "side-panel"
+const openPanels = new Map<number, chrome.runtime.Port>()
+
 type SidePanelWithClose = typeof chrome.sidePanel & {
   close?: (options: { windowId?: number; tabId?: number }) => Promise<void>
 }
 
-async function isSidePanelOpen(windowId: number): Promise<boolean> {
-  if (typeof chrome.runtime.getContexts !== "function") return false
-  try {
-    const contexts = await chrome.runtime.getContexts({
-      contextTypes: ["SIDE_PANEL" as chrome.runtime.ContextType],
-      windowIds: [windowId]
-    })
-    return contexts.length > 0
-  } catch {
-    return false
-  }
-}
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== PANEL_PORT_NAME) return
+  port.onMessage.addListener((message: any) => {
+    if (message?.type === "PANEL_READY" && typeof message.windowId === "number") {
+      openPanels.set(message.windowId, port)
+    }
+  })
+  port.onDisconnect.addListener(() => {
+    for (const [windowId, registered] of openPanels) {
+      if (registered === port) openPanels.delete(windowId)
+    }
+  })
+})
 
 async function closeSidePanel(windowId: number): Promise<void> {
   const panel = chrome.sidePanel as SidePanelWithClose
@@ -235,15 +240,16 @@ async function closeSidePanel(windowId: number): Promise<void> {
       await panel.close({ windowId })
       return
     } catch {
-      // 关闭失败（例如该窗口用的是标签页级面板）→ 走回落路径
+      // 关闭失败（例如该窗口用的是标签页级面板）→ 走面板自关路径
     }
   }
-  chrome.runtime.sendMessage({ type: "CLOSE_SIDE_PANEL", windowId }).catch(() => {})
+  // Chrome 141 之前没有关闭 API：让面板文档自己 window.close()
+  openPanels.get(windowId)?.postMessage({ type: "CLOSE_SIDE_PANEL" })
 }
 
 chrome.action.onClicked.addListener(async (tab) => {
   const windowId = tab.windowId
-  if (typeof windowId === "number" && (await isSidePanelOpen(windowId))) {
+  if (typeof windowId === "number" && openPanels.has(windowId)) {
     await closeSidePanel(windowId)
     return
   }

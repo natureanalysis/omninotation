@@ -217,22 +217,39 @@ export default function SidePanel() {
     void getCategories(locale).then(setPageCategories)
   }, [locale])
 
-  // Chrome 141 之前没有关闭侧边栏的 API：图标再次点击时由后台确认面板已开，
-  // 发来这条消息让面板文档自己关闭。
+  // 与后台保持一条端口并报上自己的窗口 id：后台据此判断本窗口的侧边栏是否开着，
+  // 图标再次点击时发来关闭指令（Chrome 141 之前只能由面板文档自己 window.close）。
   useEffect(() => {
-    const listener = (message: any) => {
-      if (message?.type !== "CLOSE_SIDE_PANEL") return
-      const windowId = message.windowId
-      if (typeof windowId === "number") {
-        chrome.windows.getCurrent((w) => {
-          if (w.id === windowId) window.close()
-        })
+    let disposed = false
+    let port: chrome.runtime.Port | null = null
+    let retry: ReturnType<typeof setTimeout> | null = null
+
+    const connect = () => {
+      if (disposed) return
+      try {
+        port = chrome.runtime.connect({ name: "side-panel" })
+      } catch {
         return
       }
-      window.close()
+      port.onMessage.addListener((message: any) => {
+        if (message?.type === "CLOSE_SIDE_PANEL") window.close()
+      })
+      port.onDisconnect.addListener(() => {
+        // 后台 service worker 休眠会断开端口，重连一次以保持状态准确
+        port = null
+        if (!disposed) retry = setTimeout(connect, 300)
+      })
+      chrome.windows.getCurrent((w) => {
+        if (typeof w.id === "number") port?.postMessage({ type: "PANEL_READY", windowId: w.id })
+      })
     }
-    chrome.runtime.onMessage.addListener(listener)
-    return () => chrome.runtime.onMessage.removeListener(listener)
+    connect()
+
+    return () => {
+      disposed = true
+      if (retry) clearTimeout(retry)
+      port?.disconnect()
+    }
   }, [])
 
   useEffect(() => {
