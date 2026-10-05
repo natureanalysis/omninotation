@@ -1,4 +1,4 @@
-# OmniNotation — Chrome Web Store 文案包（v0.1.1）
+# OmniNotation — Chrome Web Store 文案包（v0.2.1）
 
 > 使用位置：[开发者控制台](https://chrome.google.com/webstore/devconsole) → OmniNotation →
 > 每个语言栏目的「名称 / 摘要 / 说明」。商店描述为**纯文本**（不支持 Markdown，链接用裸 URL，
@@ -132,6 +132,6 @@ Markdown 导入导出
 
 - **预设的商店语言**：默认 English；再添加「中文（简体）」填上面第二组。
 - **类别**：选「工具」（Productivity 亦可），与单一用途政策一致。
-- **更新说明**：用之前起草的 v0.1.1 精简版即可。
+- **更新说明**：用 CHANGELOG 的 v0.2.1 段落（KnoWeave 账户与固化地址、图标开合侧边栏、分类本地化与建议修复）。
 - **截图**：建议至少 2 张（批注页 + 侧边栏），1280×800 或 640×400。
 - **隐私披露问卷**：勾「不发送用户数据到远程服务器」之外，因 KnoWeave 分享存在用户主动上传，按实际披露「认证信息 + 用户名/显示名」用于账户与分享、不用于分析；数据删除联系人可填 GitHub 仓库 issue 途径。
