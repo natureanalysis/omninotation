@@ -58,28 +58,41 @@ export function ToolbarSettings({ locale: localeProp }: { locale?: Locale } = {}
     load()
   }, [load])
 
+  // 外部改动（另一个窗口的设置页、仪表盘）要能反映到本界面
+  useEffect(() => {
+    const listener = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+      if (area === "local" && changes["toolbar_config"]) void load()
+    }
+    chrome.storage.onChanged.addListener(listener)
+    return () => chrome.storage.onChanged.removeListener(listener)
+  }, [load])
+
   const save = useCallback(async (next: ToolbarConfig) => {
     setConfig(next)
     await storage.saveToolbarConfig(next)
   }, [])
 
-  const updatePartial = useCallback((partial: Partial<ToolbarConfig>) => {
-    setConfig((prev) => {
-      if (!prev) return prev
-      const next = { ...prev, ...partial }
-      storage.saveToolbarConfig(next)
-      return next
-    })
-  }, [])
+  // setState updater 必须是纯函数：写存储放在 updater 外面，
+  // 否则 React 重渲染或 StrictMode 双调用会重复落盘。
+  const updatePartial = useCallback(
+    (partial: Partial<ToolbarConfig>) => {
+      if (!config) return
+      const next = { ...config, ...partial }
+      setConfig(next)
+      void storage.saveToolbarConfig(next)
+    },
+    [config]
+  )
 
-  const updateStyle = useCallback((partial: Partial<ToolbarConfig["style"]>) => {
-    setConfig((prev) => {
-      if (!prev) return prev
-      const next = { ...prev, style: { ...prev.style, ...partial } }
-      storage.saveToolbarConfig(next)
-      return next
-    })
-  }, [])
+  const updateStyle = useCallback(
+    (partial: Partial<ToolbarConfig["style"]>) => {
+      if (!config) return
+      const next = { ...config, style: { ...config.style, ...partial } }
+      setConfig(next)
+      void storage.saveToolbarConfig(next)
+    },
+    [config]
+  )
 
   const addEngine = () => {
     const name = newEngineName.trim()

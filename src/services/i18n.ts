@@ -19,26 +19,16 @@ const translations = {
     addComment: "添加批注",
     copy: "复制",
     copySuccess: "已复制",
-    commentPlaceholder: "输入批注内容...",
-    back: "返回",
     save: "保存",
     anchorFailed: "定位失败，请尝试选择更多上下文。",
     searchIn: (name: string) => `在 ${name} 搜索`,
 
     // ActionMenu
-    markdownSupported: "支持 Markdown 格式",
-    addAnnotationPlaceholder: "添加批注...",
-    proposeEditPlaceholder: "提议修改...",
     name: "名称",
     cancel: "取消",
 
     // Sidebar
-    closeSidebar: "关闭侧边栏",
     filterAll: "全部",
-    filterComment: "批注",
-    filterEdit: "修改",
-    noAnnotations: "暂无批注",
-    annotationCount: (n: number) => `本页共 ${n} 条批注`,
     delete: "删除",
 
     // AnnotationCard
@@ -50,7 +40,6 @@ const translations = {
     resolved: "已解决",
     markPending: "标记为待处理",
     markResolved: "标记为已解决",
-    undo: "撤销",
     resolve: "解决",
     edit: "编辑",
     mdBold: "加粗",
@@ -65,7 +54,6 @@ const translations = {
     mdLink: "链接",
     mdDivider: "分隔线",
     addCommentMarkdown: "添加评论（支持完整 Markdown）",
-    send: "发送",
     clickToJump: "点击跳转到网页对应位置",
     anonymous: "匿名",
 
@@ -108,12 +96,6 @@ const translations = {
     unbookmark: "取消收藏",
     bookmark: "收藏此页面",
     tagPlaceholder: "标签",
-    pagePermission: "页面权限:",
-    visibilityPrivate: "仅自己",
-    visibilityPublic: "公开",
-    visibilityGroup: "群组",
-    selectGroup: "选择群组...",
-    highlightColor: "高亮颜色:",
     pageNotePlaceholder: "写下你对这个网页的批注（支持完整 Markdown）",
     addNote: "+ 添加批注",
     stickyNoteBtn: "📌 便签",
@@ -142,7 +124,6 @@ const translations = {
     importPageConfirm: "导入将覆盖当前页面的批注，确定继续？",
 
     // options.tsx
-    allBookmarks: "所有收藏",
     deleteFolderConfirm: "确定删除此文件夹？其中的收藏将移至根目录。",
     bookmarksTitle: "OmniNotation 收藏夹",
     refresh: "🔄 刷新",
@@ -175,9 +156,6 @@ const translations = {
     contextMenuDelete: "删除此批注",
 
     // GroupManager.tsx
-    groupManagement: (n: number) => `群组管理 (${n})`,
-    noGroups: "暂无群组",
-    newGroupNamePlaceholder: "新群组名称",
 
     // ToolbarSettings.tsx
     floatingMenuSettings: "🛠️ 浮动菜单设置",
@@ -236,7 +214,6 @@ const translations = {
     // author name used when creating annotations/replies
     me: "我",
     // AnnotationMarker.tsx – “Comment by Alice” / “批注 · Alice”
-    annotationBy: (kind: string, name: string) => `${kind} · ${name}`,
     // Markdown export (storage.ts)
     exportPageHeader: "页面",
     exportTags: "标签",
@@ -251,7 +228,6 @@ const translations = {
     hubLoggedInAs: (name: string) => `已登录：${name}`,
     hubUsername: "用户名",
     hubUsernamePlaceholder: "3–32 位字母、数字、_ 或 -",
-    hubPassword: "密码",
     hubPasswordPlaceholder: "至少 8 位",
     hubLogin: "登录",
     hubSigningIn: "登录中…",
@@ -317,26 +293,16 @@ const translations = {
     addComment: "Add Note",
     copy: "Copy",
     copySuccess: "Copied",
-    commentPlaceholder: "Type your note...",
-    back: "Back",
     save: "Save",
     anchorFailed: "Anchor failed. Try selecting more context.",
     searchIn: (name: string) => `Search on ${name}`,
 
     // ActionMenu
-    markdownSupported: "Markdown formatting supported",
-    addAnnotationPlaceholder: "Add a note...",
-    proposeEditPlaceholder: "Suggest an edit...",
     name: "Name",
     cancel: "Cancel",
 
     // Sidebar
-    closeSidebar: "Close sidebar",
     filterAll: "All",
-    filterComment: "Notes",
-    filterEdit: "Edits",
-    noAnnotations: "No annotations yet",
-    annotationCount: (n: number) => `${n} annotation${n !== 1 ? "s" : ""} on this page`,
     delete: "Delete",
 
     // AnnotationCard
@@ -348,7 +314,6 @@ const translations = {
     resolved: "Resolved",
     markPending: "Mark as pending",
     markResolved: "Mark as resolved",
-    undo: "Undo",
     resolve: "Resolve",
     edit: "Edit",
     mdBold: "Bold",
@@ -363,7 +328,6 @@ const translations = {
     mdLink: "Link",
     mdDivider: "Divider",
     addCommentMarkdown: "Add a comment (full Markdown supported)",
-    send: "Send",
     clickToJump: "Click to jump to the highlighted position",
     anonymous: "Anonymous",
 
@@ -406,12 +370,6 @@ const translations = {
     unbookmark: "Remove bookmark",
     bookmark: "Bookmark this page",
     tagPlaceholder: "Tag",
-    pagePermission: "Page access:",
-    visibilityPrivate: "Private",
-    visibilityPublic: "Public",
-    visibilityGroup: "Group",
-    selectGroup: "Select group...",
-    highlightColor: "Highlight color:",
     pageNotePlaceholder: "Write your note for this page (full Markdown supported)",
     addNote: "+ Add Note",
     stickyNoteBtn: "📌 Sticky",
@@ -440,7 +398,6 @@ const translations = {
     importPageConfirm: "Import will overwrite this page's annotations. Continue?",
 
     // options.tsx
-    allBookmarks: "All Bookmarks",
     deleteFolderConfirm: "Delete this folder? Bookmarks inside will be moved to root.",
     bookmarksTitle: "OmniNotation Bookmarks",
     refresh: "🔄 Refresh",
@@ -473,9 +430,6 @@ const translations = {
     contextMenuDelete: "Delete this annotation",
 
     // GroupManager.tsx
-    groupManagement: (n: number) => `Groups (${n})`,
-    noGroups: "No groups",
-    newGroupNamePlaceholder: "New group name",
 
     // ToolbarSettings.tsx
     floatingMenuSettings: "🛠️ Floating Menu Settings",
@@ -534,7 +488,6 @@ const translations = {
     // author name used when creating annotations/replies
     me: "Me",
     // AnnotationMarker.tsx – “Comment by Alice” / “批注 · Alice”
-    annotationBy: (kind: string, name: string) => `${kind} by ${name}`,
     // Markdown export (storage.ts)
     exportPageHeader: "Page",
     exportTags: "Tags",
@@ -549,7 +502,6 @@ const translations = {
     hubLoggedInAs: (name: string) => `Signed in as ${name}`,
     hubUsername: "Username",
     hubUsernamePlaceholder: "3–32 chars: letters, digits, _ or -",
-    hubPassword: "Password",
     hubPasswordPlaceholder: "At least 8 characters",
     hubLogin: "Sign in",
     hubSigningIn: "Signing in…",
@@ -614,22 +566,12 @@ export interface TranslationKeys {
   recentColors: string
   opacity: string
   addComment: string
-  commentPlaceholder: string
-  back: string
   save: string
   anchorFailed: string
   searchIn: (name: string) => string
-  markdownSupported: string
-  addAnnotationPlaceholder: string
-  proposeEditPlaceholder: string
   name: string
   cancel: string
-  closeSidebar: string
   filterAll: string
-  filterComment: string
-  filterEdit: string
-  noAnnotations: string
-  annotationCount: (n: number) => string
   copy: string
   copySuccess: string
   delete: string
@@ -641,7 +583,6 @@ export interface TranslationKeys {
   resolved: string
   markPending: string
   markResolved: string
-  undo: string
   resolve: string
   edit: string
   addCommentMarkdown: string
@@ -656,7 +597,6 @@ export interface TranslationKeys {
   mdCodeBlock: string
   mdLink: string
   mdDivider: string
-  send: string
   clickToJump: string
   anonymous: string
   extensionReloaded: string
@@ -696,12 +636,6 @@ export interface TranslationKeys {
   unbookmark: string
   bookmark: string
   tagPlaceholder: string
-  pagePermission: string
-  visibilityPrivate: string
-  visibilityPublic: string
-  visibilityGroup: string
-  selectGroup: string
-  highlightColor: string
   pageNotePlaceholder: string
   addNote: string
   stickyNoteBtn: string
@@ -729,7 +663,6 @@ export interface TranslationKeys {
   importPageFail: string
   importPageConfirm: string
   // options
-  allBookmarks: string
   deleteFolderConfirm: string
   bookmarksTitle: string
   refresh: string
@@ -760,9 +693,6 @@ export interface TranslationKeys {
   contextMenuSquiggly: string
   contextMenuDelete: string
   // GroupManager
-  groupManagement: (n: number) => string
-  noGroups: string
-  newGroupNamePlaceholder: string
   // ToolbarSettings
   floatingMenuSettings: string
   enableFloatingMenu: string
@@ -819,7 +749,6 @@ export interface TranslationKeys {
   // author name used when creating annotations/replies
   me: string
   // AnnotationMarker.tsx
-  annotationBy: (kind: string, name: string) => string
   // Markdown export (storage.ts)
   exportPageHeader: string
   exportTags: string
@@ -833,7 +762,6 @@ export interface TranslationKeys {
   hubLoggedInAs: (name: string) => string
   hubUsername: string
   hubUsernamePlaceholder: string
-  hubPassword: string
   hubPasswordPlaceholder: string
   hubLogin: string
   hubSigningIn: string

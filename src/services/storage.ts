@@ -121,6 +121,27 @@ function safeRemove(keys: string | string[]): Promise<void> {
   })
 }
 
+/**
+ * 按 key 串行化「读-改-写」：后台的 Hub 同步与侧边栏/仪表盘的编辑发生在不同上下文，
+ * 两边都拿旧快照整值覆盖写同一份 `annotations:<url>` 时会丢掉对方的改动。
+ * 注意只在同一 JS realm 内互斥；跨上下文仍靠临界区内重新读取来缩小竞态窗口。
+ */
+const writeQueues = new Map<string, Promise<void>>()
+
+async function withKeyLock<T>(key: string, critical: () => Promise<T>): Promise<T> {
+  const previous = writeQueues.get(key) ?? Promise.resolve()
+  const run = previous.then(critical, critical)
+  const settled = run.then(
+    () => undefined,
+    () => undefined
+  )
+  writeQueues.set(key, settled)
+  void settled.then(() => {
+    if (writeQueues.get(key) === settled) writeQueues.delete(key)
+  })
+  return run
+}
+
 export async function getAnnotations(url: string): Promise<Annotation[]> {
   const key = getKey(url)
   const result = await safeGet(key)
@@ -129,14 +150,16 @@ export async function getAnnotations(url: string): Promise<Annotation[]> {
 
 export async function saveAnnotation(annotation: Annotation): Promise<void> {
   const key = getKey(annotation.url)
-  const existing = await getAnnotations(annotation.url)
-  const index = existing.findIndex((a) => a.id === annotation.id)
-  if (index >= 0) {
-    existing[index] = annotation
-  } else {
-    existing.push(annotation)
-  }
-  await safeSet({ [key]: existing })
+  await withKeyLock(key, async () => {
+    const existing = await getAnnotations(annotation.url)
+    const index = existing.findIndex((a) => a.id === annotation.id)
+    if (index >= 0) {
+      existing[index] = annotation
+    } else {
+      existing.push(annotation)
+    }
+    await safeSet({ [key]: existing })
+  })
   // Auto-bookmark if not already bookmarked
   const bookmarked = await isBookmarked(annotation.url)
   if (!bookmarked) {
@@ -152,42 +175,49 @@ export async function saveAnnotation(annotation: Annotation): Promise<void> {
 
 export async function deleteAnnotation(url: string, id: string): Promise<void> {
   const key = getKey(url)
-  const existing = await getAnnotations(url)
-  const filtered = existing.filter((a) => a.id !== id)
-  await safeSet({ [key]: filtered })
+  await withKeyLock(key, async () => {
+    const existing = await getAnnotations(url)
+    await safeSet({ [key]: existing.filter((a) => a.id !== id) })
+  })
 }
 
 export async function updateAnnotationContent(url: string, annotationId: string, content: string): Promise<void> {
   const key = getKey(url)
-  const annotations = await getAnnotations(url)
-  const ann = annotations.find((a) => a.id === annotationId)
-  if (!ann) return
-  ann.data.content = content
-  ann.updatedAt = new Date().toISOString()
-  // 本地编辑远程批注 → 视为 fork，远端 content_hash 变更不再覆盖（hub-share-plan §3.3）
-  if (ann.origin) ann.origin.forked = true
-  await safeSet({ [key]: annotations })
+  await withKeyLock(key, async () => {
+    const annotations = await getAnnotations(url)
+    const ann = annotations.find((a) => a.id === annotationId)
+    if (!ann) return
+    ann.data.content = content
+    ann.updatedAt = new Date().toISOString()
+    // 本地编辑远程批注 → 视为 fork，远端 content_hash 变更不再覆盖（hub-share-plan §3.3）
+    if (ann.origin) ann.origin.forked = true
+    await safeSet({ [key]: annotations })
+  })
 }
 
 export async function updateAnnotationStatus(url: string, annotationId: string, status: "open" | "resolved"): Promise<void> {
   const key = getKey(url)
-  const annotations = await getAnnotations(url)
-  const ann = annotations.find((a) => a.id === annotationId)
-  if (!ann) return
-  ann.status = status
-  if (ann.origin) ann.origin.forked = true
-  await safeSet({ [key]: annotations })
+  await withKeyLock(key, async () => {
+    const annotations = await getAnnotations(url)
+    const ann = annotations.find((a) => a.id === annotationId)
+    if (!ann) return
+    ann.status = status
+    if (ann.origin) ann.origin.forked = true
+    await safeSet({ [key]: annotations })
+  })
 }
 
 export async function updateAnnotationColor(url: string, annotationId: string, color: string | undefined): Promise<void> {
   const key = getKey(url)
-  const annotations = await getAnnotations(url)
-  const ann = annotations.find((a) => a.id === annotationId)
-  if (!ann) return
-  ann.data.color = color
-  ann.updatedAt = new Date().toISOString()
-  if (ann.origin) ann.origin.forked = true
-  await safeSet({ [key]: annotations })
+  await withKeyLock(key, async () => {
+    const annotations = await getAnnotations(url)
+    const ann = annotations.find((a) => a.id === annotationId)
+    if (!ann) return
+    ann.data.color = color
+    ann.updatedAt = new Date().toISOString()
+    if (ann.origin) ann.origin.forked = true
+    await safeSet({ [key]: annotations })
+  })
 }
 
 // ========================
@@ -259,6 +289,14 @@ export async function mergeRemoteAnnotations(
   url: string,
   feed: RemotePageFeed,
   commentsByAnnotation: Record<string, Reply[]> = {}
+): Promise<void> {
+  await withKeyLock(getKey(url), () => mergeRemoteAnnotationsLocked(url, feed, commentsByAnnotation))
+}
+
+async function mergeRemoteAnnotationsLocked(
+  url: string,
+  feed: RemotePageFeed,
+  commentsByAnnotation: Record<string, Reply[]>
 ): Promise<void> {
   const key = getKey(url)
   const existing = await getAnnotations(url)
@@ -359,21 +397,25 @@ export async function clearAnnotations(url: string): Promise<void> {
 }
 
 export async function updateBookmarkVisibility(url: string, visibility: Visibility, groupId?: string): Promise<void> {
-  const bookmarks = await getBookmarks()
-  const bm = bookmarks.find((b) => b.url === url)
-  if (!bm) return
-  bm.visibility = visibility
-  if (groupId) bm.groupId = groupId
-  else delete bm.groupId
-  await safeSet({ [BOOKMARKS_KEY]: bookmarks })
+  await withKeyLock(BOOKMARKS_KEY, async () => {
+    const bookmarks = await getBookmarks()
+    const bm = bookmarks.find((b) => b.url === url)
+    if (!bm) return
+    bm.visibility = visibility
+    if (groupId) bm.groupId = groupId
+    else delete bm.groupId
+    await safeSet({ [BOOKMARKS_KEY]: bookmarks })
+  })
 }
 
 export async function updateBookmarkTags(url: string, tags: string[]): Promise<void> {
-  const bookmarks = await getBookmarks()
-  const bm = bookmarks.find((b) => b.url === url)
-  if (!bm) return
-  bm.tags = tags
-  await safeSet({ [BOOKMARKS_KEY]: bookmarks })
+  await withKeyLock(BOOKMARKS_KEY, async () => {
+    const bookmarks = await getBookmarks()
+    const bm = bookmarks.find((b) => b.url === url)
+    if (!bm) return
+    bm.tags = tags
+    await safeSet({ [BOOKMARKS_KEY]: bookmarks })
+  })
 }
 
 export function getDefaultPageCategories(): PageCategory[] {
@@ -395,26 +437,28 @@ export async function getPageCategories(): Promise<PageCategory[]> {
 }
 
 export async function setPageCategory(url: string, categoryId: string | undefined): Promise<void> {
-  const bookmarks = await getBookmarks()
-  const bm = bookmarks.find((b) => b.url === url)
-  if (!bm) {
-    const cat = categoryId ? (await getPageCategories()).find((c) => c.id === categoryId) : undefined
-    if (!cat) return
-    const newBookmark: Bookmark = {
-      id: crypto.randomUUID(),
-      url,
-      title: url,
-      createdAt: new Date().toISOString(),
-      categoryId
+  await withKeyLock(BOOKMARKS_KEY, async () => {
+    const bookmarks = await getBookmarks()
+    const bm = bookmarks.find((b) => b.url === url)
+    if (!bm) {
+      const cat = categoryId ? (await getPageCategories()).find((c) => c.id === categoryId) : undefined
+      if (!cat) return
+      const newBookmark: Bookmark = {
+        id: crypto.randomUUID(),
+        url,
+        title: url,
+        createdAt: new Date().toISOString(),
+        categoryId
+      }
+      bookmarks.unshift(newBookmark)
+      await safeSet({ [BOOKMARKS_KEY]: bookmarks })
+      return
     }
-    bookmarks.unshift(newBookmark)
-    await safeSet({ [BOOKMARKS_KEY]: bookmarks })
-    return
-  }
 
-  if (categoryId) bm.categoryId = categoryId
-  else delete bm.categoryId
-  await safeSet({ [BOOKMARKS_KEY]: bookmarks })
+    if (categoryId) bm.categoryId = categoryId
+    else delete bm.categoryId
+    await safeSet({ [BOOKMARKS_KEY]: bookmarks })
+  })
 }
 
 export async function getPageCategoryForUrl(url: string): Promise<PageCategory | undefined> {
@@ -540,25 +584,30 @@ export async function isBookmarked(url: string): Promise<boolean> {
 }
 
 export async function addBookmark(bookmark: Bookmark): Promise<void> {
-  const bookmarks = await getBookmarks()
-  if (bookmarks.some((b) => b.url === bookmark.url)) return
-  bookmarks.unshift(bookmark)
-  await safeSet({ [BOOKMARKS_KEY]: bookmarks })
+  await withKeyLock(BOOKMARKS_KEY, async () => {
+    const bookmarks = await getBookmarks()
+    if (bookmarks.some((b) => b.url === bookmark.url)) return
+    bookmarks.unshift(bookmark)
+    await safeSet({ [BOOKMARKS_KEY]: bookmarks })
+  })
 }
 
 export async function removeBookmark(url: string): Promise<void> {
-  const bookmarks = await getBookmarks()
-  const filtered = bookmarks.filter((b) => b.url !== url)
-  await safeSet({ [BOOKMARKS_KEY]: filtered })
+  await withKeyLock(BOOKMARKS_KEY, async () => {
+    const bookmarks = await getBookmarks()
+    await safeSet({ [BOOKMARKS_KEY]: bookmarks.filter((b) => b.url !== url) })
+  })
 }
 
 export async function updateBookmarkFolder(url: string, folderId: string | undefined): Promise<void> {
-  const bookmarks = await getBookmarks()
-  const bm = bookmarks.find((b) => b.url === url)
-  if (!bm) return
-  if (folderId) bm.folderId = folderId
-  else delete bm.folderId
-  await safeSet({ [BOOKMARKS_KEY]: bookmarks })
+  await withKeyLock(BOOKMARKS_KEY, async () => {
+    const bookmarks = await getBookmarks()
+    const bm = bookmarks.find((b) => b.url === url)
+    if (!bm) return
+    if (folderId) bm.folderId = folderId
+    else delete bm.folderId
+    await safeSet({ [BOOKMARKS_KEY]: bookmarks })
+  })
 }
 
 // Bookmark folders

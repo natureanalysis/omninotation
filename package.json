@@ -11,7 +11,7 @@
     "package": "plasmo package",
     "prepackage": "node scripts/embed-engine-icons.mjs",
     "embed-icons": "node scripts/embed-engine-icons.mjs",
-    "test": "node --import ./tests/module-hooks.mjs --test tests/hub.test.ts tests/page-identity.test.ts",
+    "test": "node scripts/keyparity.check.cjs && node --import ./tests/module-hooks.mjs --test tests/hub.test.ts tests/page-identity.test.ts tests/color.test.ts tests/categories.test.ts tests/storage-write.test.ts",
     "download-icons": "node scripts/download-engine-icons.mjs",
     "postdownload-icons": "node scripts/embed-engine-icons.mjs"
   },

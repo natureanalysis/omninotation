@@ -271,13 +271,20 @@ export default function SidePanel() {
         const newAnns = changes[key].newValue as Annotation[] | undefined
         const oldAnns = changes[key].oldValue as Annotation[] | undefined
         if (newAnns) {
-          // Only update if actually different from current state (avoid overwriting optimistic updates)
-          const currentIds = new Set(annotationsRef.current.map((a) => a.id))
-          const newIds = new Set(newAnns.map((a) => a.id))
-          const idsChanged = currentIds.size !== newIds.size || newAnns.some((a) => !currentIds.has(a.id)) || annotationsRef.current.some((a) => !newIds.has(a.id))
-          if (idsChanged) {
-            setAnnotations(newAnns)
-            fetchPositionsAndSort(newAnns, customOrderRef.current)
+          // 外部写入（另一个窗口的面板、后台的 Hub 同步）按内容采纳；
+          // 只比 id 集合会漏掉正文/状态/颜色的改动。正在编辑中的条目保留本地草稿，
+          // 避免把用户刚敲进去还没保存的文字覆盖掉。
+          const localById = new Map(annotationsRef.current.map((a) => [a.id, a]))
+          const editing = pendingEditIdsRef.current
+          const merged = newAnns.map((a) => {
+            const local = localById.get(a.id)
+            return local && editing.has(a.id) ? local : a
+          })
+          const idsChanged = merged.length !== localById.size || merged.some((a) => !localById.has(a.id))
+          const contentChanged = JSON.stringify(merged) !== JSON.stringify(annotationsRef.current)
+          if (idsChanged || contentChanged) {
+            setAnnotations(merged)
+            fetchPositionsAndSort(merged, customOrderRef.current)
           }
           // Auto-edit empty annotations from context menu — only when newly added
           if (!oldAnns || newAnns.length > oldAnns.length) {

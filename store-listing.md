@@ -39,7 +39,7 @@ NATIVE SIDE PANEL
 
 BOOKMARKS, TAGS & SEARCH
 • Pages you annotate are bookmarked automatically.
-• Keep them tidy with nested folders, page-level tags and categories, and per-page visibility (private / public / group).
+• Keep them tidy with nested folders, page-level tags and page categories that also tint the toolbar icon.
 • Global search across all annotations, quotes, replies and tags.
 
 SELECTION TOOLBAR
@@ -100,7 +100,7 @@ OmniNotation 让任何网页都变成你的批注画布，同时完全不改变�
 
 书签、标签与搜索
 • 带批注的页面自动收藏为书签。
-• 多级文件夹、页面级标签与分类、页面可见性（私密 / 公开 / 群组）帮你整理收藏。
+• 多级文件夹、页面级标签，以及会让工具栏图标变色的页面分类，帮你整理收藏。
 • 全局搜索横跨所有批注、引用、回复与标签。
 
 划词工具栏

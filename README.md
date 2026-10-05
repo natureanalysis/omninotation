@@ -54,7 +54,6 @@ Key highlights:
 | **Drag & Drop Sorting** | Annotations sorted by page Y-position by default. Drag to reorder manually. Reset anytime. |
 | **Nested Replies** | Reply to any comment, and reply to replies — fully hierarchical thread support. |
 | **Color Picker** | 6 highlight colors (yellow/blue/green/red/purple/orange). Broadcasts to all tabs instantly. |
-| **Page-Level Permissions** | Set visibility per page: 🔒 Private, 🌐 Public, or 👥 Group. Group management built-in. |
 | **Page Tags** | Add tags to bookmarked pages for quick categorization and filtering. |
 | **Bookmark Folders** | Organize bookmarked pages into nested folders via the Options dashboard. |
 | **Global Search** | Search across all annotations, quotes, replies, and tags from the bookmark dashboard. |
@@ -143,11 +142,11 @@ Open the side panel → **Floating Menu Settings** to manage search engines:
 - **Reorder**: Use ↑ ↓ to change the engine order.
 - **Toggle**: Check/uncheck to enable or disable an engine.
 
-### Permissions & Tags
+### Tags & Categories
 
-- **Page Visibility**: Use the "Page Permission" selector in the side panel to set the whole page as 🔒 Private, 🌐 Public, or 👥 Group.
-- **Groups**: Expand the "Group Manager" section in the side panel to create/delete groups.
 - **Page Tags**: Click "＋ Tag" in the side panel header to add tags to the current page.
+- **Page Categories**: Pick a category in the side panel's Categories tab; the toolbar icon follows the category color.
+- **Sharing**: Sign in to KnoWeave in the Settings tab, then share selected annotations (accounts are created on the website).
 
 ### Bookmark Dashboard
 
@@ -203,12 +202,14 @@ omninotation/
 │   │   └── omninotation.tsx      # Content script: highlight injection, SPA observer, sticky notes
 │   ├── components/
 │   │   ├── AnnotationCard.tsx    # Single annotation card (side panel)
-│   │   ├── MarkdownContent.tsx   # Markdown + KaTeX renderer
-│   │   ├── ReplyThread.tsx       # Nested reply thread component
-│   │   ├── GroupManager.tsx      # Group management panel
+│   │   ├── MarkdownContent.tsx   # Markdown + KaTeX renderer (sanitized before insert)
+│   │   ├── MarkdownEditor.tsx    # Markdown editor with optional live preview
+│   │   ├── CategoryPanel.tsx     # Page categories: pick, manage, auto rules
+│   │   ├── CategoryIconSwatch.tsx# Canvas preview sharing the toolbar icon renderer
+│   │   ├── HubAccount.tsx        # KnoWeave sign-in / shares / sync
+│   │   ├── HubShareDialog.tsx    # Select annotations and upload a share
 │   │   ├── SelectionToolbar.tsx  # Floating toolbar on text selection (annotate / copy / search)
-│   │   ├── ToolbarSettings.tsx   # Floating toolbar settings (engines, style, triggers)
-│   │   └── ActionMenu.tsx        # Legacy floating toolbar (unused)
+│   │   └── ToolbarSettings.tsx   # Floating toolbar settings (engines, style, triggers)
 │   ├── services/
 │   │   ├── storage.ts            # Chrome storage abstraction
 │   │   ├── anchor.ts             # dom-anchor-text-quote wrapper
@@ -268,8 +269,6 @@ OmniNotation 是一款 Chrome 浏览器扩展，将任意网页变成可批注�
 | **单个批注颜色** | 每个批注可独立设置颜色，覆盖全局高亮色 |
 | **6 种高亮颜色** | 黄/蓝/绿/红/紫/橙，实时同步到所有标签页 |
 | **暗色模式适配** | 检测系统暗色模式，高亮颜色自动加深，保护视力 |
-| **页面级权限** | 🔒 仅自己 / 🌐 公开 / 👥 群组，整页统一设置 |
-| **群组管理** | 侧边栏内可创建、删除群组 |
 | **页面标签** | 为收藏页面添加标签，便于分类检索 |
 | **多级收藏夹** | 在选项页中用文件夹组织收藏页面，支持无限嵌套 |
 | **全局搜索** | 在收藏夹中跨页面搜索批注内容、引用、回复和标签 |
@@ -314,10 +313,10 @@ npm run build
 - 支持添加、编辑、删除、排序搜索引擎
 - 点击 ⬇ 下载图标到本地；失败时可手动设置图标 URL 或使用 Emoji/汉字
 
-**权限与标签**：
-- 在侧边栏"页面权限"中选择整页的可见性：🔒 仅自己 / 🌐 公开 / 👥 群组
-- 展开"群组管理"可创建、删除群组
+**标签与分类**：
 - 点击"＋ 标签"为当前页面添加标签
+- 在侧边栏「分类」页选择页面分类，工具栏图标随之变色
+- 在「设置」里登录 KnoWeave 后可勾选分享批注（注册账号在网站上完成）
 
 **收藏夹仪表盘**：
 - 点击侧边栏 📊 按钮打开收藏夹管理器

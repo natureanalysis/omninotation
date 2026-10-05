@@ -224,7 +224,13 @@ async function refreshAccessToken(): Promise<string | null> {
         body: JSON.stringify({ refresh_token: session.refreshToken })
       })
       if (!res.ok) {
-        // refresh 失效（过期/被吊销）→ 清空本地会话，回到未登录态
+        // refresh token 是一次一换：面板与后台同时续期时，输家手里的旧 token 必被拒。
+        // 若存储里已经是别处写入的新会话，直接借用它，别把赢家刚存好的会话清空。
+        const current = await getHubSession()
+        if (current?.refreshToken && current.refreshToken !== session.refreshToken) {
+          return current.accessToken
+        }
+        // refresh 确实失效（过期/被吊销）→ 清空本地会话，回到未登录态
         await clearHubSession()
         return null
       }
