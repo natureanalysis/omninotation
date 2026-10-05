@@ -171,29 +171,32 @@ def export_sizes(base_png, prefix, sizes, out_dir=LOGO_DIR):
     return outs
 
 
-def knock_out_bg(src, dst, key_rgb, tol=6):
+def knock_out_bg(src, dst, key_rgb, tol=4):
     """把截图里指定的底色转为透明，产出 RGBA。
 
     Edge 无头截图会把页面背景烘进位图（输出 RGB、无 alpha），
     直接使用会导致「白底方块」污染所有下游合成。
-    这里按键控抠掉底色，并做**边缘羽化** —— 直接按色值硬抠会让
-    抗锯齿边缘出现白边，所以按到key 色的距离生成渐变 alpha。
+
+    ⚠️ 羽化带不能误伤实心区域：抗锯齿边缘的过渡色是「前景色与白底的混合」，
+    距离白底较远；若把宽过渡带一律线性衰减，会让本该不透明的实心像素
+    alpha 掉到 240 之类，产生「整体发灰」的隐性缺陷。
+    因此羽化带收窄到 tol*2，且只对**接近底色**的像素生效。
     """
-    # 必须先转RGBA —— 在 RGB 图像上写 4 元组会被静默忽略，alpha 永远设不上
     im = Image.open(src).convert("RGBA")
     px = im.load()
     w, h = im.size
     for j in range(h):
         for i in range(w):
-            r, g, b, _ = px[i, j]
+            r, g, b, a = px[i, j]
             d = max(abs(r - key_rgb[0]), abs(g - key_rgb[1]), abs(b - key_rgb[2]))
             if d <= tol:
                 px[i, j] = (r, g, b, 0)
-            elif d < tol * 4:
-                # 边缘过渡带：按距离线性衰减到不透明
-                a = int(255 * (d - tol) / (tol * 3))
-                px[i, j] = (r, g, b, max(0, min(255, a)))
+            elif d <= tol * 2:
+                # 紧邻底色的过渡像素：线性衰减到不透明
+                t = (d - tol) / tol
+                px[i, j] = (r, g, b, max(0, min(255, int(255 * t))))
             else:
+                # 前景色或实心区域：保持完全不透明
                 px[i, j] = (r, g, b, 255)
     im.save(dst)
     return dst
@@ -254,9 +257,8 @@ def build_mark():
         knock_out_bg(raw, knocked, (255, 255, 255))
         base = os.path.join(WORK, f"{prefix}_fit.png")
         fit_with_padding(knocked, base, pad)
-        if is_dark:
-            recolor_dark_dot(base, base)
-        # 512 原尺寸 + 常用尺寸
+        # 注意：深色版的圆点**已在 SVG 里就是浅薄荷白**（见 build_mark_dark.py），
+        # 不需要也不能再做一次位图换色 —— 那会二次采样、削弱 alpha。
         shutil.copy(base, os.path.join(LOGO_DIR, f"{prefix}-512.png"))
         sizes = (128, 48, 32, 16) if prefix == "omninotation-mark" else ((32, 16) if "small" in prefix else (128, 48))
         export_sizes(base, prefix, sizes)

@@ -136,26 +136,29 @@ def build():
   <div class="bg"></div>
   <div class="ring-accent"></div>
 
-  <!-- 左：图形 mark。mask 引用已清除（片段不含 defs），故断口由外层路径补出。 -->
-  <svg width="176" height="176" viewBox="180 220 680 680"
-       style="position:absolute; left:{PAD - 12}px; top:{(H - 176)//2}px; overflow:visible;">
+  <!-- 左：图形 mark。
+       viewBox 取 mark 的实际包围盒（含线宽）x 235–805 / y 220–685，
+       比例约 1.25:1，配合下面的 width/height 保持等比，
+       不能用 1:1 的 viewBox —— 那会横向溢出压到右侧字标。 -->
+  <svg width="172" height="138" viewBox="235 220 570 465"
+       style="position:absolute; left:{PAD}px; top:{(H - 138)//2}px;">
     <g fill="none" stroke="{RING}">{mark}</g>
   </svg>
 
-  <!-- 右：字标+ 副标 -->
-  <svg width="196" height="42" viewBox="88 660 845 112"
-       style="position:absolute; left:216px; top:84px; overflow:visible;">
+  <!-- 右：字标 + 副标 -->
+  <svg width="200" height="30" viewBox="88 660 845 112"
+       style="position:absolute; left:230px; top:92px;">
     <g fill="{DEEP}">{word}</g>
   </svg>
 
-  <div style="position:absolute; left:218px; top:142px; width:194px; height:2px;
-              background:linear-gradient(90deg,{RING} 0%,{RING} 40%,rgba(20,184,166,0) 100%);"></div>
+  <div style="position:absolute; left:232px; top:140px; width:196px; height:2px;
+              background:linear-gradient(90deg,{RING} 0%,{RING} 42%,rgba(20,184,166,0) 100%);"></div>
 
-  <div style="position:absolute; left:218px; top:162px; color:{DEEP};
+  <div style="position:absolute; left:232px; top:160px; color:{DEEP};
               font-size:15px; font-weight:600; letter-spacing:0.2px; opacity:0.92;">
     把网页变成可批注画布
   </div>
-  <div style="position:absolute; left:218px; top:187px; color:{DEEP};
+  <div style="position:absolute; left:232px; top:185px; color:{DEEP};
               font-size:12px; font-weight:400; opacity:0.62;">
     高亮重点 · 划线批注 · 随手笔记
   </div>
