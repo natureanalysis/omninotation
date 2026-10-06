@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### 侧边栏开合
+
+- **点扩展图标没反应**：`action.onClicked` 里 `sidePanel.open()` 排在 `await ensureOptionalPageAccess()` 之后。MV3 service worker 中 open() 只在用户手势的同步调用栈内有效，任何一次 await（哪怕只是 `permissions.contains` 这类 IPC）都会让手势失效，open 被拒又被 `.catch` 吞掉，于是毫无动静。
+- **开合交给平台**：改用 `sidePanel.setPanelBehavior({ openPanelOnActionClick: true })`，删掉「面板上报 port + 后台记 windowId」那套。旧写法的开合状态要等面板文档挂载才准，中间那一下点击会落空；实测新开关在 SW 休眠后依然逐次开→合→开。不支持该开关的老版本走 `onClicked → sidePanel.open()` 兜底（能开不能合）。
+- 右键菜单的高亮项同样把 `open()` 提到 await 之前。
+
+### 页面批注权限
+
+- 侧边栏「设置」新增**页面批注权限**卡片：可选 host 权限只能在有用户手势的扩展页面申请，而 service worker 里 `permissions.request()` 必被拒（实测），此前全新安装后根本没有入口能拿到 `https://*/*`，后台向内容脚本 `sendMessage` 一直报 `Receiving end does not exist`，右键菜单批注与切页刷新都不可用。后台的 `ensureOptionalPageAccess` 随之删除。
+
+### 工具栏图标
+
+- `restoreDefaultIcon` 此前拿 manifest 里的相对路径去调 `setIcon({path})`，实测报 `Failed to set icon 'x.png': Failed to fetch`，只有根路径 `/x.png` 可用；内部页面的图标重置也去掉了硬编码的 Plasmo 哈希文件名（该文件名在 prod 产物里并不存在）。
+
 ## v0.2.2 — 2026-10-06
 
 ### 数据安全（全面审查修复）

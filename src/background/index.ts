@@ -205,57 +205,21 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   }
 })
 
-// Click extension icon to toggle the Chrome side panel.
-// `runtime.getContexts()` reports SIDE_PANEL contexts with windowId = -1, so the
-// open state is tracked from the panel document itself: it opens a long-lived
-// port and tells us which window it lives in.
-const PANEL_PORT_NAME = "side-panel"
-const openPanels = new Map<number, chrome.runtime.Port>()
-
-type SidePanelWithClose = typeof chrome.sidePanel & {
-  close?: (options: { windowId?: number; tabId?: number }) => Promise<void>
-}
-
-chrome.runtime.onConnect.addListener((port) => {
-  if (port.name !== PANEL_PORT_NAME) return
-  port.onMessage.addListener((message: any) => {
-    if (message?.type === "PANEL_READY" && typeof message.windowId === "number") {
-      openPanels.set(message.windowId, port)
-    }
-  })
-  port.onDisconnect.addListener(() => {
-    for (const [windowId, registered] of openPanels) {
-      if (registered === port) openPanels.delete(windowId)
-    }
-  })
-})
-
-async function closeSidePanel(windowId: number): Promise<void> {
-  const panel = chrome.sidePanel as SidePanelWithClose
-  if (typeof panel.close === "function") {
-    try {
-      await panel.close({ windowId })
-      return
-    } catch {
-      // 关闭失败（例如该窗口用的是标签页级面板）→ 走面板自关路径
-    }
-  }
-  // Chrome 141 之前没有关闭 API：让面板文档自己 window.close()
-  openPanels.get(windowId)?.postMessage({ type: "CLOSE_SIDE_PANEL" })
-}
-
+// 点图标开合侧边栏交给平台自己做：`openPanelOnActionClick` 是持久开关，
+// 手势、开合状态、跨 SW 休眠都由浏览器负责。后台自己记「哪个窗口开着面板」不可靠——
+// 面板文档要等 React 挂载后才上报端口，中间那一下点击会落空，看起来像没反应。
+// 老版本没有这个开关时，下面的 onClicked 兜底至少保证「点击能打开」。
 chrome.action.onClicked.addListener((tab) => {
-  // `sidePanel.open()` 只在用户手势的同步调用栈里有效：这里一旦先 await（哪怕只是
-  // permissions.contains 这类 IPC），手势就失效，open() 被拒、点图标毫无反应。
-  // 页面批注权限也只能在有手势的扩展页面申请（见 services/access.ts），后台不再碰它。
-  const windowId = tab.windowId
-  if (typeof windowId !== "number") return
-  if (openPanels.has(windowId)) {
-    void closeSidePanel(windowId)
-    return
+  // 注意：`sidePanel.open()` 只在用户手势的同步调用栈里有效，前面不能有任何 await。
+  if (typeof tab.windowId === "number") {
+    chrome.sidePanel.open({ windowId: tab.windowId }).catch(() => {})
   }
-  void chrome.sidePanel.open({ windowId }).catch(() => {})
 })
+try {
+  void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {})
+} catch {
+  /* 更早的版本没有这个开关：上面的 onClicked 兜底负责打开 */
+}
 
 // Click mark in page → open side panel and scroll to annotation
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
