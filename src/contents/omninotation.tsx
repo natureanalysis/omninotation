@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client"
 import cssText from "data-text:~/style.css"
 
 import { AnnotationContextMenu, type AnnotationMenuTarget } from "@/components/AnnotationContextMenu"
-import { AnnotationTooltip, buildExcerpt, type AnnotationTooltipTarget } from "@/components/AnnotationTooltip"
+import { AnnotationTooltip, type AnnotationTooltipTarget } from "@/components/AnnotationTooltip"
 import { SelectionToolbar } from "@/components/SelectionToolbar"
 import * as anchor from "@/services/anchor"
 import { detectLocale, initLocale, t, type Locale } from "@/services/i18n"
@@ -415,6 +415,25 @@ export default function OmniNotationOverlay() {
       if (!ann || !(ann.data.content || "").trim()) return null
       return { el, ann }
     }
+    // 一条批注可能被行内元素切成多个 <mark>，也可能跨多行：气泡要按整条批注的外接范围摆位，
+    // 否则会压住批注自己的后一行。
+    const annotationBounds = (annotationId: string, el: HTMLElement) => {
+      let top = Number.POSITIVE_INFINITY
+      let bottom = Number.NEGATIVE_INFINITY
+      let right = Number.NEGATIVE_INFINITY
+      for (const node of Array.from(document.querySelectorAll(`[data-omninotation-id="${annotationId}"]`))) {
+        for (const r of Array.from(node.getClientRects())) {
+          top = Math.min(top, r.top)
+          bottom = Math.max(bottom, r.bottom)
+          right = Math.max(right, r.right)
+        }
+      }
+      // 行高按页面自己的来：写死 22px 在行距大的正文里仍会压住批注的下一行。
+      const cs = getComputedStyle(el)
+      const declared = parseFloat(cs.lineHeight)
+      const fontSize = parseFloat(cs.fontSize) || 16
+      return { top, bottom, right, lineHeight: Number.isFinite(declared) ? declared : fontSize * 1.2 || 22 }
+    }
     const handleMouseOver = (e: MouseEvent) => {
       const hit = hoveredAnnotation(e)
       if (!hit) {
@@ -422,8 +441,7 @@ export default function OmniNotationOverlay() {
         return
       }
       clearHoverTip()
-      const r = hit.el.getBoundingClientRect()
-      const excerpt = buildExcerpt(hit.el, { ...hit.ann.selector, exact: hit.ann.quote || hit.ann.selector?.exact })
+      const r = annotationBounds(hit.ann.id, hit.el)
       // 延迟一点，避免鼠标划过时一闪而过
       hoverTipTimer.current = setTimeout(() => {
         hoverTipTimer.current = null
@@ -432,11 +450,10 @@ export default function OmniNotationOverlay() {
           content: hit.ann.data.content,
           author: hit.ann.author?.name || "",
           createdAt: hit.ann.createdAt,
-          color: hit.ann.data.color,
-          excerpt,
           anchorTop: r.top,
           anchorBottom: r.bottom,
-          anchorLeft: r.left
+          anchorRight: r.right,
+          anchorLineHeight: r.lineHeight
         })
       }, 180)
     }
