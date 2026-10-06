@@ -92,7 +92,7 @@ const translations = {
     catApply: "应用",
     catClear: "清除",
     catUnspecified: "未指定",
-    openDashboard: "打开仪表盘",
+    openBookmarks: "打开收藏夹",
     unbookmark: "取消收藏",
     bookmark: "收藏此页面",
     tagPlaceholder: "标签",
@@ -366,7 +366,7 @@ const translations = {
     catApply: "Apply",
     catClear: "Clear",
     catUnspecified: "Unspecified",
-    openDashboard: "Open Dashboard",
+    openBookmarks: "Open bookmarks",
     unbookmark: "Remove bookmark",
     bookmark: "Bookmark this page",
     tagPlaceholder: "Tag",
@@ -632,7 +632,7 @@ export interface TranslationKeys {
   catApply: string
   catClear: string
   catUnspecified: string
-  openDashboard: string
+  openBookmarks: string
   unbookmark: string
   bookmark: string
   tagPlaceholder: string

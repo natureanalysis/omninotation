@@ -641,8 +641,8 @@ export default function SidePanel() {
           <button
             onClick={() => chrome.runtime.openOptionsPage()}
             className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-            title={L.openDashboard}>
-            📊
+            title={L.openBookmarks}>
+            📂
           </button>
           <button
             onClick={async () => {

@@ -139,6 +139,12 @@ export default function OptionsPage() {
     chrome.storage.onChanged.addListener(onLocaleChange)
     return () => chrome.storage.onChanged.removeListener(onLocaleChange)
   }, [])
+
+  // 工具栏图标的右键菜单里这一项由 Chrome 固定显示为「选项 / Options」，扩展改不了文案；
+  // 本页实际是收藏夹，所以至少让标签页与页面标题把名字说清楚。
+  useEffect(() => {
+    document.title = L.bookmarksTitle
+  }, [L.bookmarksTitle])
   const [entries, setEntries] = useState<AnnotationEntry[]>([])
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([])
   const [folders, setFolders] = useState<BookmarkFolder[]>([])
