@@ -153,7 +153,6 @@ const translations = {
     contextMenuUnderline: "U̲ 下划线",
     contextMenuStrikethrough: "S̶ 删除线",
     contextMenuSquiggly: "〰 波浪线",
-    contextMenuDelete: "删除此批注",
 
     // GroupManager.tsx
 
@@ -245,6 +244,10 @@ const translations = {
     accessEnable: "启用页面批注",
     accessDeniedNote: "未授予权限。也可以在浏览器的扩展详情里把「在所有网站上」改为允许。",
     accessReloadNote: "已启用，刷新页面后生效。",
+
+    // AnnotationContextMenu（页内右键菜单）
+    menuCopyText: "复制文本",
+    menuDeleteAnnotation: "删除批注",
     hubPrivacyNote: "分享时会将当前页面的批注、标题与网址发送到 KnoWeave，仅在点击分享后发送。",
     hubSharePage: "分享本页批注",
     hubShareSingle: "分享此批注",
@@ -435,7 +438,6 @@ const translations = {
     contextMenuUnderline: "U̲ Underline",
     contextMenuStrikethrough: "S̶ Strikethrough",
     contextMenuSquiggly: "〰 Squiggly",
-    contextMenuDelete: "Delete this annotation",
 
     // GroupManager.tsx
 
@@ -527,6 +529,8 @@ const translations = {
     accessEnable: "Enable page annotations",
     accessDeniedNote: "Access was not granted. You can also set \"All sites\" to allow on the extension's details page.",
     accessReloadNote: "Enabled. Reload the page to apply.",
+    menuCopyText: "Copy text",
+    menuDeleteAnnotation: "Delete annotation",
     hubPrivacyNote: "Sharing sends this page's annotations, title and URL to KnoWeave, only after you click share.",
     hubSharePage: "Share page annotations",
     hubShareSingle: "Share this annotation",
@@ -707,7 +711,6 @@ export interface TranslationKeys {
   contextMenuUnderline: string
   contextMenuStrikethrough: string
   contextMenuSquiggly: string
-  contextMenuDelete: string
   // GroupManager
   // ToolbarSettings
   floatingMenuSettings: string
@@ -793,6 +796,8 @@ export interface TranslationKeys {
   accessEnable: string
   accessDeniedNote: string
   accessReloadNote: string
+  menuCopyText: string
+  menuDeleteAnnotation: string
   hubPrivacyNote: string
   hubSharePage: string
   hubShareSingle: string

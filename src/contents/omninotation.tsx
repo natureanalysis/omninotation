@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { createRoot } from "react-dom/client"
 import cssText from "data-text:~/style.css"
 
+import { AnnotationContextMenu, type AnnotationMenuTarget } from "@/components/AnnotationContextMenu"
 import { SelectionToolbar } from "@/components/SelectionToolbar"
 import * as anchor from "@/services/anchor"
 import { detectLocale, initLocale, t, type Locale } from "@/services/i18n"
@@ -62,10 +63,14 @@ export default function OmniNotationOverlay() {
   const stickyMode = useRef(false)
   const stickyTooltip = useRef<HTMLDivElement | null>(null)
   const [popupSelection, setPopupSelection] = useState<{ text: string; range: Range; rect: DOMRect } | null>(null)
+  const [annotationMenu, setAnnotationMenu] = useState<AnnotationMenuTarget | null>(null)
   const popupSelectionRef = useRef(popupSelection)
   useEffect(() => { popupSelectionRef.current = popupSelection }, [popupSelection])
   const [toolbarConfig, setToolbarConfig] = useState<ToolbarConfig | null>(null)
   const toolbarConfigRef = useRef<ToolbarConfig | null>(null)
+  // mouseup / mousedown / hover 三个处理器都读 ref：不同步的话首次加载后 ref 仍是 null，
+  // 选词工具栏永远弹不出来（只有改过一次工具栏设置才生效）。
+  useEffect(() => { toolbarConfigRef.current = toolbarConfig }, [toolbarConfig])
   // Follow the persisted language preference so the in-page UI (selection
   // toolbar, tooltips, author names) switches language live.
   const [locale, setLocaleState] = useState<Locale>(detectLocale)
@@ -83,7 +88,6 @@ export default function OmniNotationOverlay() {
     return () => chrome.storage?.onChanged?.removeListener(onLocaleChange)
   }, [])
   const lastSelectionRef = useRef<{ text: string; range: Range; rect?: DOMRect } | null>(null)
-  const lastClickedAnnotationId = useRef<string | null>(null)
   const lastLinkText = useRef("")
   const modifierState = useRef({ ctrl: false, alt: false, shift: false })
   const pendingMiddleClick = useRef(false)
@@ -364,13 +368,27 @@ export default function OmniNotationOverlay() {
     document.addEventListener("mousedown", handleGlobalMouseDown, true)
     document.addEventListener("mouseup", handleGlobalMouseUp, true)
 
-    // Context menu: track right-clicked annotation
+    // Context menu: 右击落在批注上时接管原生菜单，显示页内菜单
     const handleContextMenu = (e: MouseEvent) => {
       const target = e.target as HTMLElement
       lastLinkText.current = (target.closest?.("a") as HTMLElement)?.textContent?.trim() || ""
       const markEl = target.closest?.(`mark.${HIGHLIGHT_CLASS}`) as HTMLElement | null
       const stickyEl = target.closest?.(`.${STICKY_CLASS}`) as HTMLElement | null
-      lastClickedAnnotationId.current = markEl?.dataset?.omninotationId || stickyEl?.dataset?.omninotationId || null
+      const annEl = markEl || stickyEl
+      const annotationId = annEl?.dataset?.omninotationId || ""
+      if (!annEl || !annotationId) {
+        setAnnotationMenu(null)
+        return
+      }
+      e.preventDefault()
+      e.stopPropagation()
+      setAnnotationMenu({
+        annotationId,
+        isSticky: !markEl,
+        text: (annEl.textContent || "").trim(),
+        x: e.clientX,
+        y: e.clientY
+      })
     }
     document.addEventListener("contextmenu", handleContextMenu)
 
@@ -471,15 +489,6 @@ export default function OmniNotationOverlay() {
             }).catch(() => {})
           }
           break
-        case "CONTEXT_MENU_DELETE":
-          if (lastClickedAnnotationId.current) {
-            const annId = lastClickedAnnotationId.current
-            lastClickedAnnotationId.current = null
-            storage.deleteAnnotation(location.href, annId).then(() => {
-              removeAnnotationFromDom(annId)
-            }).catch(() => {})
-          }
-          break
         case "COPY_LINK_NAME":
           if (lastLinkText.current) navigator.clipboard.writeText(lastLinkText.current).catch(() => {})
           break
@@ -517,6 +526,20 @@ export default function OmniNotationOverlay() {
           config={toolbarConfig}
           locale={locale}
           onClose={() => setPopupSelection(null)}
+        />
+      )}
+      {annotationMenu && (
+        <AnnotationContextMenu
+          target={annotationMenu}
+          style={toolbarConfig?.style ?? storage.getDefaultToolbarConfig().style}
+          locale={locale}
+          onDelete={(annotationId) => {
+            storage
+              .deleteAnnotation(location.href, annotationId)
+              .then(() => removeAnnotationFromDom(annotationId))
+              .catch(() => {})
+          }}
+          onClose={() => setAnnotationMenu(null)}
         />
       )}
     </>

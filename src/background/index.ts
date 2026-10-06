@@ -34,7 +34,6 @@ const BG_STRINGS = {
     contextMenuUnderline: "U̲ 下划线",
     contextMenuStrikethrough: "S̶ 删除线",
     contextMenuSquiggly: "〰 波浪线",
-    contextMenuDelete: "删除此批注",
     contextMenuCopyLinkName: "复制链接名称"
   },
   en: {
@@ -42,7 +41,6 @@ const BG_STRINGS = {
     contextMenuUnderline: "U̲ Underline",
     contextMenuStrikethrough: "S̶ Strikethrough",
     contextMenuSquiggly: "〰 Squiggly",
-    contextMenuDelete: "Delete this annotation",
     contextMenuCopyLinkName: "Copy Link Name"
   }
 }
@@ -70,11 +68,6 @@ function setupContextMenu() {
           contexts: ["selection"]
         })
       }
-      chrome.contextMenus.create({
-        id: "omninotation-delete-annotation",
-        title: S.contextMenuDelete,
-        contexts: ["page"]
-      })
       chrome.contextMenus.create({
         id: "omninotation-copy-link-name",
         title: S.contextMenuCopyLinkName,
@@ -182,9 +175,6 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       .catch(() => {
         // Content script may not be injected yet
       })
-  }
-  if (info.menuItemId === "omninotation-delete-annotation" && tab?.id) {
-    chrome.tabs.sendMessage(tab.id, { type: "CONTEXT_MENU_DELETE" }).catch(() => {})
   }
   if (info.menuItemId === "omninotation-copy-link-name" && tab?.id) {
     chrome.tabs.sendMessage(tab.id, { type: "COPY_LINK_NAME" }).catch(() => {})

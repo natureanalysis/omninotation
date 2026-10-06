@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### 页内右键菜单
+
+- **右击批注即出菜单**：在网页上的高亮或便签上点右键，页内弹出「复制文本 / 删除批注」两项菜单（跟随工具栏外观设置，支持 Escape、点击外部关闭，并夹在视口内）。此前删除只能靠常驻的原生菜单项「删除此批注」——它在任何右击上都会出现，且没点到批注时静默什么也不做，所以那条原生项连同 `CONTEXT_MENU_DELETE` 一并移除。
+- **修选词工具栏弹不出来**：`toolbarConfigRef` 只在存储变更回调里赋值，首次加载后仍是 `null`，而 mouseup / mousedown / hover 三个入口都读它——于是浮动工具栏在改过一次设置之前永远不出现。改为随 state 同步。
+
 ### 侧边栏开合
 
 - **点扩展图标没反应**：`action.onClicked` 里 `sidePanel.open()` 排在 `await ensureOptionalPageAccess()` 之后。MV3 service worker 中 open() 只在用户手势的同步调用栈内有效，任何一次 await（哪怕只是 `permissions.contains` 这类 IPC）都会让手势失效，open 被拒又被 `.catch` 吞掉，于是毫无动静。
