@@ -7,6 +7,7 @@ import { AnnotationContextMenu, type AnnotationMenuTarget } from "@/components/A
 import { AnnotationTooltip, type AnnotationTooltipTarget } from "@/components/AnnotationTooltip"
 import { SelectionToolbar } from "@/components/SelectionToolbar"
 import * as anchor from "@/services/anchor"
+import { parseRgba } from "@/services/color"
 import { detectLocale, initLocale, t, type Locale } from "@/services/i18n"
 import { getDomainConfig, shouldActivate } from "@/services/config"
 import {
@@ -417,7 +418,7 @@ export default function OmniNotationOverlay() {
     }
     // 一条批注可能被行内元素切成多个 <mark>，也可能跨多行：气泡要按整条批注的外接范围摆位，
     // 否则会压住批注自己的后一行。
-    const annotationBounds = (annotationId: string, el: HTMLElement) => {
+    const annotationBounds = (annotationId: string, el: HTMLElement, fallbackColor: string) => {
       let top = Number.POSITIVE_INFINITY
       let bottom = Number.NEGATIVE_INFINITY
       let right = Number.NEGATIVE_INFINITY
@@ -432,7 +433,16 @@ export default function OmniNotationOverlay() {
       const cs = getComputedStyle(el)
       const declared = parseFloat(cs.lineHeight)
       const fontSize = parseFloat(cs.fontSize) || 16
-      return { top, bottom, right, lineHeight: Number.isFinite(declared) ? declared : fontSize * 1.2 || 22 }
+      // 气泡底色取批注实际渲染出来的颜色（全局设置、单条改色、暗色模式都已经算好）；
+      // 下划线/删除线那类没有底色，退回批注记录里的颜色。
+      const painted = parseRgba(cs.backgroundColor)
+      return {
+        top,
+        bottom,
+        right,
+        lineHeight: Number.isFinite(declared) ? declared : fontSize * 1.2 || 22,
+        color: painted && painted.a > 0 ? cs.backgroundColor : fallbackColor
+      }
     }
     const handleMouseOver = (e: MouseEvent) => {
       const hit = hoveredAnnotation(e)
@@ -441,7 +451,7 @@ export default function OmniNotationOverlay() {
         return
       }
       clearHoverTip()
-      const r = annotationBounds(hit.ann.id, hit.el)
+      const r = annotationBounds(hit.ann.id, hit.el, hit.ann.data.color || "")
       // 延迟一点，避免鼠标划过时一闪而过
       hoverTipTimer.current = setTimeout(() => {
         hoverTipTimer.current = null
@@ -453,7 +463,8 @@ export default function OmniNotationOverlay() {
           anchorTop: r.top,
           anchorBottom: r.bottom,
           anchorRight: r.right,
-          anchorLineHeight: r.lineHeight
+          anchorLineHeight: r.lineHeight,
+          color: hit.ann.data.color
         })
       }, 180)
     }

@@ -3,6 +3,7 @@ import { describe, it } from "node:test"
 
 import {
   darkenForDarkMode,
+  flattenColor,
   hexToRgba,
   isPresetColor,
   parseRgba,
@@ -69,5 +70,20 @@ describe("darkenForDarkMode", () => {
 
   it("非 rgba 的值原样通过", () => {
     assert.equal(darkenForDarkMode("#ff0000"), "#ff0000")
+  })
+})
+
+describe("flattenColor", () => {
+  it("半透明批注色摊到白底上，得到同色的实心淡底", () => {
+    assert.equal(flattenColor("rgba(250, 204, 21, 0.3)", "#ffffff"), "rgb(254, 240, 185)")
+  })
+
+  it("alpha 夹在 0.25～0.4：太淡看不出颜色，太浓压住正文", () => {
+    assert.equal(flattenColor("rgba(59, 130, 246, 0.05)", "#ffffff"), "rgb(206, 224, 253)")
+    assert.equal(flattenColor("rgba(59, 130, 246, 1)", "#ffffff"), "rgb(177, 205, 251)")
+  })
+
+  it("认不出的颜色退回底色，坏输入不会变 NaN", () => {
+    assert.equal(flattenColor("not-a-color", "rgb(255, 255, 255)"), "rgb(255, 255, 255)")
   })
 })

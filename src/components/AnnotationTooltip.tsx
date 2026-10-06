@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from "react"
 
+import { flattenColor } from "@/services/color"
 import { detectLocale, t, type Locale } from "@/services/i18n"
 import type { ToolbarStyle } from "@/types"
 
@@ -9,8 +10,8 @@ const MAX_COMMENT_CHARS = 600
 const FALLBACK_LINE_HEIGHT = 22
 /** 让出一行：行距极大的页面也别把气泡推到离批注太远的地方。 */
 const MAX_LINE_OFFSET = 56
-/** 气泡尾巴离卡片左缘的距离（尾巴指向批注末端）。 */
-const TAIL_INSET = 14
+/** 尾巴根部的宽度：贴着卡片那条边，越靠近批注越细。 */
+const TAIL_BASE = 15
 
 export interface AnnotationTooltipTarget {
   annotationId: string
@@ -24,6 +25,8 @@ export interface AnnotationTooltipTarget {
   anchorRight: number
   /** 页面自己的行高，用来把气泡再让开批注的下一行。 */
   anchorLineHeight?: number
+  /** 批注自己的颜色：气泡底色跟它一致。 */
+  color?: string
 }
 
 interface Props {
@@ -36,49 +39,67 @@ const SERIF = `Georgia, "Times New Roman", "Songti SC", "Source Han Serif SC", S
 
 /**
  * 悬停批注时浮出的评论气泡：谁在什么时候说了什么。
- * 摆在批注右下方，不遮住被批注的那一行，也不遮住它上面/紧跟的下一行。
+ * 底色跟着批注的颜色，尾巴是个从批注末端收窄到卡片边缘的三角，看得出气泡长在字上。
  * 正文按纯文本 + 保留换行渲染——不引 marked/KaTeX，免得给每个站点的内容脚本塞进渲染引擎。
  */
 export function AnnotationTooltip({ target, style, locale: localeProp }: Props) {
   const locale = localeProp ?? detectLocale()
   const L = t(locale)
   const boxRef = useRef<HTMLDivElement>(null)
-  const tailRef = useRef<HTMLDivElement>(null)
+  const tailRef = useRef<SVGPolygonElement>(null)
 
   useLayoutEffect(() => {
     const el = boxRef.current
-    if (!el) return
+    const tail = tailRef.current
+    if (!el || !tail) return
     const r = el.getBoundingClientRect()
     const gap = 10
-    const lineOffset = Math.min(Math.max(target.anchorLineHeight || FALLBACK_LINE_HEIGHT, FALLBACK_LINE_HEIGHT), MAX_LINE_OFFSET)
+    const lineOffset = Math.min(
+      Math.max(target.anchorLineHeight || FALLBACK_LINE_HEIGHT, FALLBACK_LINE_HEIGHT),
+      MAX_LINE_OFFSET
+    )
 
     let left = target.anchorRight + gap
     if (left + r.width > window.innerWidth - 8) left = window.innerWidth - r.width - 8
+    left = Math.max(8, left)
 
     let top = target.anchorBottom + lineOffset
     let side: "below" | "above" = "below"
     if (top + r.height > window.innerHeight - 8) {
-      // 下方放不下才翻到上方，此时尾巴改指下方
-      top = target.anchorTop - r.height - gap
+      // 下方放不下才翻到上方，尾巴随之改指上方
+      top = Math.max(8, target.anchorTop - r.height - gap)
       side = "above"
     }
-    el.style.left = `${Math.max(8, left)}px`
-    el.style.top = `${Math.max(8, top)}px`
+    el.style.left = `${left}px`
+    el.style.top = `${top}px`
 
-    const tail = tailRef.current
-    if (tail) {
-      tail.style.top = side === "below" ? "-5px" : ""
-      tail.style.bottom = side === "below" ? "" : "-5px"
-      tail.style.left = `${TAIL_INSET}px`
-      tail.style.borderTopLeftRadius = side === "below" ? "3px" : "0"
-      tail.style.borderBottomLeftRadius = side === "below" ? "0" : "3px"
-    }
+    // 尾巴：顶点扎在批注末端的角上，底边贴在卡片离它最近的那个角
+    const ax = target.anchorRight
+    const ay = side === "below" ? target.anchorBottom : target.anchorTop
+    const attachX = ax > left + r.width / 2 ? left + r.width : left
+    const attachY = side === "below" ? top : top + r.height
+    const dx = attachX - ax
+    const dy = attachY - ay
+    const len = Math.hypot(dx, dy) || 1
+    const ux = dx / len
+    const uy = dy / len
+    // 底边往卡片里伸 3px：接缝被卡片自己的底色盖住，不留白线
+    const bx = attachX + ux * 3
+    const by = attachY + uy * 3
+    const hw = TAIL_BASE / 2
+    const px = -uy * hw
+    const py = ux * hw
+    const rel = (x: number, y: number) => `${(x - left).toFixed(1)},${(y - top).toFixed(1)}`
+    tail.setAttribute("points", `${rel(ax, ay)} ${rel(bx + px, by + py)} ${rel(bx - px, by - py)}`)
   }, [target])
 
   const content =
     target.content.length > MAX_COMMENT_CHARS
       ? `${target.content.slice(0, MAX_COMMENT_CHARS)}…`
       : target.content
+
+  // 底色跟批注同色；没有批注色时退回工具栏外观的底色
+  const background = target.color ? flattenColor(target.color, style.backgroundColor) : style.backgroundColor
 
   return (
     <div
@@ -95,22 +116,23 @@ export function AnnotationTooltip({ target, style, locale: localeProp }: Props) 
         maxWidth: "min(340px, 88vw)",
         pointerEvents: "none"
       }}>
-      {/* 尾巴：旋转 45° 的小方块，指向被批注的那段文字。必须留在裁剪盒外面，否则被 overflow 切掉 */}
-      <div
-        ref={tailRef}
+      {/* 尾巴画在卡片之前，靠卡片自己的底色盖住贴边那一段 */}
+      <svg
         aria-hidden
         style={{
           position: "absolute",
-          width: "11px",
-          height: "11px",
-          backgroundColor: style.backgroundColor,
-          transform: "rotate(45deg)"
-        }}
-      />
+          left: 0,
+          top: 0,
+          width: "100%",
+          height: "100%",
+          overflow: "visible"
+        }}>
+        <polygon ref={tailRef} fill={background} />
+      </svg>
 
       <div
         style={{
-          backgroundColor: style.backgroundColor,
+          backgroundColor: background,
           color: style.textColor,
           borderRadius: `${style.borderRadius}px`,
           boxShadow: style.shadow,
@@ -123,17 +145,16 @@ export function AnnotationTooltip({ target, style, locale: localeProp }: Props) 
             alignItems: "baseline",
             gap: "6px",
             padding: "6px 10px",
-            borderBottom: "1px solid rgba(0,0,0,0.10)",
-            backgroundColor: "rgba(0,0,0,0.03)",
+            borderBottom: "1px solid rgba(0,0,0,0.14)",
             fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif",
             fontSize: "10px",
             letterSpacing: "0.04em"
           }}>
-          <span style={{ fontWeight: 600, textTransform: "uppercase", opacity: 0.75 }}>{L.hoverCommentLabel}</span>
+          <span style={{ fontWeight: 700, textTransform: "uppercase", opacity: 0.8 }}>{L.hoverCommentLabel}</span>
           <span style={{ opacity: 0.45 }}>·</span>
-          <span style={{ fontWeight: 600, opacity: 0.85 }}>{target.author}</span>
+          <span style={{ fontWeight: 600, opacity: 0.9 }}>{target.author}</span>
           <span style={{ opacity: 0.45 }}>·</span>
-          <span style={{ opacity: 0.6, fontVariantNumeric: "tabular-nums" }}>
+          <span style={{ opacity: 0.65, fontVariantNumeric: "tabular-nums" }}>
             {formatWhen(target.createdAt, locale)}
           </span>
         </div>

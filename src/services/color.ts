@@ -91,6 +91,19 @@ export function withAlpha(color: string, alpha: number): string {
   return `rgba(${parsed.r}, ${parsed.g}, ${parsed.b}, ${a})`
 }
 
+/**
+ * 把半透明的批注色摊平到底色上，得到一个不透明的同色实色——和划在正文上的那段颜色一致。
+ * alpha 上下各夹一下：太淡看不出是个有色气泡，太浓又比原文高亮重一截，还会压住正文可读性。
+ */
+export function flattenColor(color: string, base: string): string {
+  const fg = parseRgba(color)
+  if (!fg) return base
+  const bg = parseRgba(base) || { r: 255, g: 255, b: 255, a: 1 }
+  const a = Math.min(Math.max(fg.a, 0.25), 0.4)
+  const mix = (f: number, b: number) => Math.round(f * a + b * (1 - a))
+  return `rgb(${mix(fg.r, bg.r)}, ${mix(fg.g, bg.g)}, ${mix(fg.b, bg.b)})`
+}
+
 /** Compare two colors ignoring their alpha channel. */
 export function sameRgb(a: string, b: string): boolean {
   const pa = parseRgba(a)
