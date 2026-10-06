@@ -84,6 +84,12 @@ function setupContextMenu() {
   })()
 }
 
+/**
+ * 确认已获得批注页面的权限。
+ * 注意：`permissions.request()` 在 service worker 里总会被拒（“must be called during a
+ * user gesture”），所以这里只在权限已就绪时返回 true；真正的授权入口必须是有手势的扩展页面。
+ * 另外它会占用一次 IPC：任何要求用户手势的 API（如 `sidePanel.open()`）都不能排在它之后。
+ */
 async function ensureOptionalPageAccess(tab?: chrome.tabs.Tab): Promise<boolean> {
   if (!tab?.url) return false
 
@@ -182,18 +188,23 @@ function maybeSyncOnTabComplete(): void {
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   const item = MARK_STYLE_ITEMS.find((i) => i.id === info.menuItemId)
   if (item && tab?.id && info.selectionText) {
-    await ensureOptionalPageAccess(tab)
-    chrome.tabs.sendMessage(tab.id, {
-      type: "CONTEXT_MENU_SAVE",
-      text: info.selectionText,
-      markStyle: item.style
-    }).catch(() => {
-      // Content script may not be injected yet
-    })
-    // Open side panel so user can see/edit the new annotation
+    // 面板要在手势的同步调用栈里打开，await 之后就再也开不了（同 action.onClicked）
     if (tab.windowId) {
-      chrome.sidePanel.open({ windowId: tab.windowId }).catch(() => {})
+      void chrome.sidePanel.open({ windowId: tab.windowId }).catch(() => {})
     }
+    const tabId = tab.id
+    void (async () => {
+      await ensureOptionalPageAccess(tab)
+      chrome.tabs
+        .sendMessage(tabId, {
+          type: "CONTEXT_MENU_SAVE",
+          text: info.selectionText,
+          markStyle: item.style
+        })
+        .catch(() => {
+          // Content script may not be injected yet
+        })
+    })()
   }
   if (info.menuItemId === "omninotation-delete-annotation" && tab?.id) {
     await ensureOptionalPageAccess(tab)
@@ -258,16 +269,17 @@ async function closeSidePanel(windowId: number): Promise<void> {
   openPanels.get(windowId)?.postMessage({ type: "CLOSE_SIDE_PANEL" })
 }
 
-chrome.action.onClicked.addListener(async (tab) => {
+chrome.action.onClicked.addListener((tab) => {
+  // `sidePanel.open()` 只在用户手势的同步调用栈里有效：这里一旦先 await（哪怕只是
+  // permissions.contains 这类 IPC），手势就失效，open() 被拒、点图标毫无反应。
+  // 页面权限本来也不能在 SW 里 request（详见 ensureOptionalPageAccess），不再在此请求。
   const windowId = tab.windowId
-  if (typeof windowId === "number" && openPanels.has(windowId)) {
-    await closeSidePanel(windowId)
+  if (typeof windowId !== "number") return
+  if (openPanels.has(windowId)) {
+    void closeSidePanel(windowId)
     return
   }
-  await ensureOptionalPageAccess(tab)
-  if (typeof windowId === "number") {
-    chrome.sidePanel.open({ windowId }).catch(() => {})
-  }
+  void chrome.sidePanel.open({ windowId }).catch(() => {})
 })
 
 // Click mark in page → open side panel and scroll to annotation
