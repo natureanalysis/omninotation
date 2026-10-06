@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client"
 import cssText from "data-text:~/style.css"
 
 import { AnnotationContextMenu, type AnnotationMenuTarget } from "@/components/AnnotationContextMenu"
-import { AnnotationTooltip, type AnnotationTooltipTarget } from "@/components/AnnotationTooltip"
+import { AnnotationTooltip, buildExcerpt, type AnnotationTooltipTarget } from "@/components/AnnotationTooltip"
 import { SelectionToolbar } from "@/components/SelectionToolbar"
 import * as anchor from "@/services/anchor"
 import { detectLocale, initLocale, t, type Locale } from "@/services/i18n"
@@ -68,7 +68,7 @@ export default function OmniNotationOverlay() {
   // 悬停批注时浮出的内容预览；hoverTipTimer 用来避免鼠标扫过就闪一下
   const [hoverAnnotation, setHoverAnnotation] = useState<AnnotationTooltipTarget | null>(null)
   const hoverTipTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const annotationNotesRef = useRef<Map<string, string>>(new Map())
+  const annotationsByIdRef = useRef<Map<string, Annotation>>(new Map())
   const popupSelectionRef = useRef(popupSelection)
   useEffect(() => { popupSelectionRef.current = popupSelection }, [popupSelection])
   const [toolbarConfig, setToolbarConfig] = useState<ToolbarConfig | null>(null)
@@ -143,7 +143,7 @@ export default function OmniNotationOverlay() {
         }
 
         const annotations: Annotation[] = result[key] ?? []
-        annotationNotesRef.current = new Map(annotations.map((a) => [a.id, a.data.content || ""] as const))
+        annotationsByIdRef.current = new Map(annotations.map((a) => [a.id, a] as const))
         if (annotations.length === 0) { isRendering.current = false; return }
 
         const config = getDomainConfig(targetUrl)
@@ -411,9 +411,9 @@ export default function OmniNotationOverlay() {
       const el = (e.target as HTMLElement)?.closest?.(`mark.${HIGHLIGHT_CLASS}, .${STICKY_CLASS}`) as HTMLElement | null
       const annotationId = el?.dataset?.omninotationId || ""
       if (!el || !annotationId) return null
-      const text = (annotationNotesRef.current.get(annotationId) || "").trim()
-      if (!text) return null
-      return { annotationId, text, el }
+      const ann = annotationsByIdRef.current.get(annotationId)
+      if (!ann || !(ann.data.content || "").trim()) return null
+      return { el, ann }
     }
     const handleMouseOver = (e: MouseEvent) => {
       const hit = hoveredAnnotation(e)
@@ -423,13 +423,20 @@ export default function OmniNotationOverlay() {
       }
       clearHoverTip()
       const r = hit.el.getBoundingClientRect()
+      const excerpt = buildExcerpt(hit.el, { ...hit.ann.selector, exact: hit.ann.quote || hit.ann.selector?.exact })
       // 延迟一点，避免鼠标划过时一闪而过
       hoverTipTimer.current = setTimeout(() => {
         hoverTipTimer.current = null
         setHoverAnnotation({
-          annotationId: hit.annotationId,
-          text: hit.text,
-          rect: { top: r.top, bottom: r.bottom, left: r.left, width: r.width }
+          annotationId: hit.ann.id,
+          content: hit.ann.data.content,
+          author: hit.ann.author?.name || "",
+          createdAt: hit.ann.createdAt,
+          color: hit.ann.data.color,
+          excerpt,
+          anchorTop: r.top,
+          anchorBottom: r.bottom,
+          anchorLeft: r.left
         })
       }, 180)
     }
