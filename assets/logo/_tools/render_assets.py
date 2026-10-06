@@ -260,7 +260,9 @@ def build_mark():
         # 注意：深色版的圆点**已在 SVG 里就是浅薄荷白**（见 build_mark_dark.py），
         # 不需要也不能再做一次位图换色 —— 那会二次采样、削弱 alpha。
         shutil.copy(base, os.path.join(LOGO_DIR, f"{prefix}-512.png"))
-        sizes = (128, 48, 32, 16) if prefix == "omninotation-mark" else ((32, 16) if "small" in prefix else (128, 48))
+        # 16 / 32 只出补偿版：主版几何在这两档两条会糊成灰带（见 SPEC.md 第五节），
+        # 位图留在目录里只会被下游误取。
+        sizes = (32, 16) if "small" in prefix else (128, 48)
         export_sizes(base, prefix, sizes)
         exp = {"ring": RING, "dot": DARK_DOT if is_dark else (6, 78, 59)}
         sample = os.path.join(LOGO_DIR, f"{prefix}-512.png")

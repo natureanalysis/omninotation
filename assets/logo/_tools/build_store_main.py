@@ -56,7 +56,7 @@ def edge_render(html, png, w, h, bg=None):
     return png
 
 
-def read_group(svg_name, gid, keep_fill=True):
+def read_group(svg_name, gid, keep_fill=True, keep_mask=False):
     """从 SVG 中提取指定 <g id="..."> 块的**全部后代**元素（保留嵌套结构）。
 
     两个已踩过的坑：
@@ -64,11 +64,13 @@ def read_group(svg_name, gid, keep_fill=True):
        正则会在第一个 </g> 处截断，导致图形缺半。
     2. ET 输出 ns0: 前缀，内嵌进 HTML 的 <svg> 时必须剥掉，
        否则浏览器因未绑定命名空间而静默丢弃整个元素。
-    另外必须清掉 mask 引用 —— 原 SVG 的 mask 定义在 <defs> 里，
-    抽取片段不包含 <defs>，残留的 mask 引用会让浏览器丢弃整个元素。
 
     fill/stroke 默认**保留**（keep_fill=True）：环需要 fill="none" 走描边，
     而内横条与圆点需要实心填充 —— 一刀切清掉会把横条变成空心。
+
+    mask 引用默认清掉（片段不含 `<defs>`，残留引用会让浏览器丢弃整个元素）；
+    需要保留断口时传 keep_mask=True，并由调用方把 `read_defs()` 的遮罩内联进同一个
+    `<svg>`，否则右上 45° 断口会被填平。
     """
     import xml.etree.ElementTree as ET
     path = os.path.join(LOGO_DIR, svg_name)
@@ -92,16 +94,18 @@ def read_group(svg_name, gid, keep_fill=True):
             if not keep_fill:
                 child.attrib.pop("fill", None)
                 child.attrib.pop("stroke", None)
-            child.attrib.pop("mask", None)            # 关键：残留 mask 会丢元素
+            if not keep_mask:
+                child.attrib.pop("mask", None)
             clean(child)
 
     clean(target)
     target.attrib.pop("transform", None)
-    target.attrib.pop("mask", None)
-    target.attrib.pop("id", None)
+    if not keep_mask:
+        target.attrib.pop("mask", None)
     if not keep_fill:
         target.attrib.pop("fill", None)
         target.attrib.pop("stroke", None)
+    target.attrib.pop("id", None)
 
     xml = ET.tostring(target, encoding="unicode")
     # ET 会输出 ns0: 前缀。注意开闭标签两种形态：
@@ -112,11 +116,30 @@ def read_group(svg_name, gid, keep_fill=True):
     return xml
 
 
+def read_defs(svg_name):
+    """取源 SVG 的 `<defs>`（断口遮罩等），供内联到片段所在 `<svg>` 里。"""
+    import xml.etree.ElementTree as ET
+    path = os.path.join(LOGO_DIR, svg_name)
+    root = ET.parse(path).getroot()
+    ns = "{http://www.w3.org/2000/svg}"
+    defs = root.find(f"{ns}defs")
+    if defs is None:
+        return ""
+    for child in list(defs):
+        if not isinstance(child.tag, str):
+            defs.remove(child)
+    xml = ET.tostring(defs, encoding="unicode")
+    xml = re.sub(r"<(/?)ns\d+:", r"<\1", xml)
+    xml = re.sub(r'\sxmlns(:\w+)?="[^"]*"', "", xml)
+    return xml
+
+
 def build():
-    # mark：清掉 fill/stroke，环与横条、圆点统一由外层指定颜色。
-    # wordmark：字标是纯 path，同样由外层指定填色。
-    mark = read_group("omninotation-mark.svg", "mark", keep_fill=False)
-    word = read_group("omninotation-logo-v1.svg", "wordmark", keep_fill=False)
+    # mark：保留各自 fill/stroke（环走描边、横条与圆点实心），并带上的断口遮罩。
+    # wordmark：转曲 path 由分组自带 fill="#064E3B"，同样不再由外层统一上色。
+    mark_defs = read_defs("omninotation-mark.svg")
+    mark = read_group("omninotation-mark.svg", "mark", keep_fill=True, keep_mask=True)
+    word = read_group("omninotation-logo-v1.svg", "wordmark", keep_fill=True)
 
     # 片段坐标说明：
     #  - mark 抽取自 omninotation-mark.svg，其内容仍在 1024 基准坐标系里
@@ -139,16 +162,18 @@ def build():
   <!-- 左：图形 mark。
        viewBox 取 mark 的实际包围盒（含线宽）x 235–805 / y 220–685，
        比例约 1.25:1，配合下面的 width/height 保持等比，
-       不能用 1:1 的 viewBox —— 那会横向溢出压到右侧字标。 -->
+       不能用 1:1 的 viewBox —— 那会横向溢出压到右侧字标。
+       defs 里是右上 45° 断口遮罩，环与横条、圆点的颜色由片段自带。 -->
   <svg width="172" height="138" viewBox="235 220 570 465"
        style="position:absolute; left:{PAD}px; top:{(H - 138)//2}px;">
-    <g fill="none" stroke="{RING}">{mark}</g>
+    {mark_defs}
+    <g>{mark}</g>
   </svg>
 
   <!-- 右：字标 + 副标 -->
   <svg width="200" height="30" viewBox="88 660 845 112"
        style="position:absolute; left:230px; top:92px;">
-    <g fill="{DEEP}">{word}</g>
+    <g>{word}</g>
   </svg>
 
   <div style="position:absolute; left:232px; top:140px; width:196px; height:2px;
