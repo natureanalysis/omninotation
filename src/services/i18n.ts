@@ -240,8 +240,8 @@ const translations = {
 
     // PageAccess
     accessSectionTitle: "页面批注权限",
-    accessGrantedNote: "已启用：可以在网页上选词高亮、贴便签。",
-    accessMissingNote: "未启用：网页上的选词工具栏与高亮不可用，批注数据与收藏夹不受影响。",
+    accessGrantedNote: "已启用：右键菜单可以直接高亮，切换页面后批注会自动刷新。",
+    accessMissingNote: "未启用：右键菜单的批注项与切换页面后的自动刷新会失效（网页上的选词工具栏仍可用）。",
     accessEnable: "启用页面批注",
     accessDeniedNote: "未授予权限。也可以在浏览器的扩展详情里把「在所有网站上」改为允许。",
     accessReloadNote: "已启用，刷新页面后生效。",
@@ -522,8 +522,8 @@ const translations = {
 
     // PageAccess
     accessSectionTitle: "Page annotation access",
-    accessGrantedNote: "Enabled — select text, highlight and add sticky notes on web pages.",
-    accessMissingNote: "Not enabled — the selection toolbar and highlights won't work on web pages. Your annotations and bookmarks are unaffected.",
+    accessGrantedNote: "Enabled — highlight from the context menu, and annotations refresh as you navigate.",
+    accessMissingNote: "Not enabled — the context-menu annotation items and refresh-on-navigation stop working; the on-page selection toolbar still works.",
     accessEnable: "Enable page annotations",
     accessDeniedNote: "Access was not granted. You can also set \"All sites\" to allow on the extension's details page.",
     accessReloadNote: "Enabled. Reload the page to apply.",
