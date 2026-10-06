@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef } from "react"
 
-import { flattenColor } from "@/services/color"
+import { flattenColor, withAlpha } from "@/services/color"
 import { detectLocale, t, type Locale } from "@/services/i18n"
 import type { ToolbarStyle } from "@/types"
 
@@ -12,6 +12,9 @@ const FALLBACK_LINE_HEIGHT = 22
 const MAX_LINE_OFFSET = 56
 /** 尾巴根部的宽度：贴着卡片那条边，越靠近批注越细。 */
 const TAIL_BASE = 15
+/** 气泡与尾巴的不透明度。 */
+const BUBBLE_ALPHA = 0.85
+const TAIL_ALPHA = 0.25
 
 export interface AnnotationTooltipTarget {
   annotationId: string
@@ -73,33 +76,30 @@ export function AnnotationTooltip({ target, style, locale: localeProp }: Props) 
     el.style.left = `${left}px`
     el.style.top = `${top}px`
 
-    // 尾巴：顶点扎在批注末端的角上，底边贴在卡片离它最近的那个角
+    // 尾巴：顶点扎在批注末端的角上，底边平行贴在卡片那条边往里 1.5px——
+    // 底边若 perpendicular 于连线，卡片 8px 圆角会在接缝处留一个缺口。
     const ax = target.anchorRight
     const ay = side === "below" ? target.anchorBottom : target.anchorTop
-    const attachX = ax > left + r.width / 2 ? left + r.width : left
-    const attachY = side === "below" ? top : top + r.height
-    const dx = attachX - ax
-    const dy = attachY - ay
-    const len = Math.hypot(dx, dy) || 1
-    const ux = dx / len
-    const uy = dy / len
-    // 底边往卡片里伸 3px：接缝被卡片自己的底色盖住，不留白线
-    const bx = attachX + ux * 3
-    const by = attachY + uy * 3
+    const radius = style.borderRadius
+    const min = left + radius + TAIL_BASE / 2
+    const max = left + r.width - radius - TAIL_BASE / 2
+    const bx = Math.min(Math.max(ax, min), Math.max(min, max))
+    const by = side === "below" ? top + 1.5 : top + r.height - 1.5
     const hw = TAIL_BASE / 2
-    const px = -uy * hw
-    const py = ux * hw
     const rel = (x: number, y: number) => `${(x - left).toFixed(1)},${(y - top).toFixed(1)}`
-    tail.setAttribute("points", `${rel(ax, ay)} ${rel(bx + px, by + py)} ${rel(bx - px, by - py)}`)
-  }, [target])
+    tail.setAttribute("points", `${rel(ax, ay)} ${rel(bx - hw, by)} ${rel(bx + hw, by)}`)
+  }, [target, style.borderRadius])
 
   const content =
     target.content.length > MAX_COMMENT_CHARS
       ? `${target.content.slice(0, MAX_COMMENT_CHARS)}…`
       : target.content
 
-  // 底色跟批注同色；没有批注色时退回工具栏外观的底色
-  const background = target.color ? flattenColor(target.color, style.backgroundColor) : style.backgroundColor
+  // 底色跟批注同色；没有批注色时退回工具栏外观的底色。
+  // 透明度按用户要的层级来：气泡 85%（能透出底下的正文），尾巴 25%（只当引线）。
+  const solid = target.color ? flattenColor(target.color, style.backgroundColor) : style.backgroundColor
+  const background = withAlpha(solid, BUBBLE_ALPHA)
+  const tailFill = withAlpha(solid, TAIL_ALPHA)
 
   return (
     <div
@@ -127,7 +127,7 @@ export function AnnotationTooltip({ target, style, locale: localeProp }: Props) 
           height: "100%",
           overflow: "visible"
         }}>
-        <polygon ref={tailRef} fill={background} />
+        <polygon ref={tailRef} fill={tailFill} />
       </svg>
 
       <div
