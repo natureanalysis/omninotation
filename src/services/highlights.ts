@@ -152,7 +152,6 @@ export function renderSticky(ann: Annotation) {
   const sticky = document.createElement("div")
   sticky.className = STICKY_CLASS
   sticky.dataset.omninotationId = ann.id
-  sticky.title = ann.data.content.slice(0, 100)
   sticky.style.left = `${ann.position.x}px`
   sticky.style.top = `${ann.position.y}px`
   if (ann.data.color) {

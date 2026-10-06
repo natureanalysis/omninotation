@@ -248,6 +248,7 @@ const translations = {
     // AnnotationContextMenu（页内右键菜单）
     menuCopyText: "复制文本",
     menuDeleteAnnotation: "删除批注",
+    annotationNote: "批注",
     hubPrivacyNote: "分享时会将当前页面的批注、标题与网址发送到 KnoWeave，仅在点击分享后发送。",
     hubSharePage: "分享本页批注",
     hubShareSingle: "分享此批注",
@@ -531,6 +532,7 @@ const translations = {
     accessReloadNote: "Enabled. Reload the page to apply.",
     menuCopyText: "Copy text",
     menuDeleteAnnotation: "Delete annotation",
+    annotationNote: "Note",
     hubPrivacyNote: "Sharing sends this page's annotations, title and URL to KnoWeave, only after you click share.",
     hubSharePage: "Share page annotations",
     hubShareSingle: "Share this annotation",
@@ -798,6 +800,7 @@ export interface TranslationKeys {
   accessReloadNote: string
   menuCopyText: string
   menuDeleteAnnotation: string
+  annotationNote: string
   hubPrivacyNote: string
   hubSharePage: string
   hubShareSingle: string

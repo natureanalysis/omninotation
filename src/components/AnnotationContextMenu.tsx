@@ -5,8 +5,7 @@ import type { ToolbarStyle } from "@/types"
 
 export interface AnnotationMenuTarget {
   annotationId: string
-  /** 便签（浮动方块）与文中高亮的删除项文案一致，只是复制的是笔记正文。 */
-  isSticky: boolean
+  /** 复制项取的是被点中的那段文字：高亮是引文，便签是笔记正文。 */
   text: string
   x: number
   y: number

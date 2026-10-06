@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client"
 import cssText from "data-text:~/style.css"
 
 import { AnnotationContextMenu, type AnnotationMenuTarget } from "@/components/AnnotationContextMenu"
+import { AnnotationTooltip, type AnnotationTooltipTarget } from "@/components/AnnotationTooltip"
 import { SelectionToolbar } from "@/components/SelectionToolbar"
 import * as anchor from "@/services/anchor"
 import { detectLocale, initLocale, t, type Locale } from "@/services/i18n"
@@ -64,6 +65,10 @@ export default function OmniNotationOverlay() {
   const stickyTooltip = useRef<HTMLDivElement | null>(null)
   const [popupSelection, setPopupSelection] = useState<{ text: string; range: Range; rect: DOMRect } | null>(null)
   const [annotationMenu, setAnnotationMenu] = useState<AnnotationMenuTarget | null>(null)
+  // 悬停批注时浮出的内容预览；hoverTipTimer 用来避免鼠标扫过就闪一下
+  const [hoverAnnotation, setHoverAnnotation] = useState<AnnotationTooltipTarget | null>(null)
+  const hoverTipTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const annotationNotesRef = useRef<Map<string, string>>(new Map())
   const popupSelectionRef = useRef(popupSelection)
   useEffect(() => { popupSelectionRef.current = popupSelection }, [popupSelection])
   const [toolbarConfig, setToolbarConfig] = useState<ToolbarConfig | null>(null)
@@ -108,6 +113,8 @@ export default function OmniNotationOverlay() {
   }
 
   const renderAnnotations = useCallback((targetUrl: string) => {
+    // 重绘后旧提示指向的可能是已被删掉的批注
+    setHoverAnnotation(null)
     if (debounceTimer.current) {
       clearTimeout(debounceTimer.current)
       debounceTimer.current = null
@@ -136,6 +143,7 @@ export default function OmniNotationOverlay() {
         }
 
         const annotations: Annotation[] = result[key] ?? []
+        annotationNotesRef.current = new Map(annotations.map((a) => [a.id, a.data.content || ""] as const))
         if (annotations.length === 0) { isRendering.current = false; return }
 
         const config = getDomainConfig(targetUrl)
@@ -382,15 +390,61 @@ export default function OmniNotationOverlay() {
       }
       e.preventDefault()
       e.stopPropagation()
+      setHoverAnnotation(null)
       setAnnotationMenu({
         annotationId,
-        isSticky: !markEl,
         text: (annEl.textContent || "").trim(),
         x: e.clientX,
         y: e.clientY
       })
     }
     document.addEventListener("contextmenu", handleContextMenu)
+
+    // 悬停批注 → 浮出该条批注的正文（高亮与便签同一条路径）
+    const clearHoverTip = () => {
+      if (hoverTipTimer.current) {
+        clearTimeout(hoverTipTimer.current)
+        hoverTipTimer.current = null
+      }
+    }
+    const hoveredAnnotation = (e: MouseEvent) => {
+      const el = (e.target as HTMLElement)?.closest?.(`mark.${HIGHLIGHT_CLASS}, .${STICKY_CLASS}`) as HTMLElement | null
+      const annotationId = el?.dataset?.omninotationId || ""
+      if (!el || !annotationId) return null
+      const text = (annotationNotesRef.current.get(annotationId) || "").trim()
+      if (!text) return null
+      return { annotationId, text, el }
+    }
+    const handleMouseOver = (e: MouseEvent) => {
+      const hit = hoveredAnnotation(e)
+      if (!hit) {
+        clearHoverTip()
+        return
+      }
+      clearHoverTip()
+      const r = hit.el.getBoundingClientRect()
+      // 延迟一点，避免鼠标划过时一闪而过
+      hoverTipTimer.current = setTimeout(() => {
+        hoverTipTimer.current = null
+        setHoverAnnotation({
+          annotationId: hit.annotationId,
+          text: hit.text,
+          rect: { top: r.top, bottom: r.bottom, left: r.left, width: r.width }
+        })
+      }, 180)
+    }
+    const handleMouseOut = (e: MouseEvent) => {
+      if (!hoveredAnnotation(e)) return
+      clearHoverTip()
+      setHoverAnnotation(null)
+    }
+    const hideHoverTip = () => {
+      clearHoverTip()
+      setHoverAnnotation(null)
+    }
+    document.addEventListener("mouseover", handleMouseOver)
+    document.addEventListener("mouseout", handleMouseOut)
+    window.addEventListener("scroll", hideHoverTip, true)
 
     // Sticky note placement
     const handleStickyClick = (e: MouseEvent) => {
@@ -511,6 +565,11 @@ export default function OmniNotationOverlay() {
       document.removeEventListener("mousemove", handleMouseMove)
       document.removeEventListener("keydown", handleKeyDown)
       document.removeEventListener("keyup", handleKeyUp)
+      document.removeEventListener("contextmenu", handleContextMenu)
+      document.removeEventListener("mouseover", handleMouseOver)
+      document.removeEventListener("mouseout", handleMouseOut)
+      window.removeEventListener("scroll", hideHoverTip, true)
+      clearHoverTip()
       if (hoverShowTimer.current) { clearTimeout(hoverShowTimer.current); hoverShowTimer.current = null }
       if (stickyTooltip.current) { stickyTooltip.current.remove(); stickyTooltip.current = null }
     }
@@ -540,6 +599,13 @@ export default function OmniNotationOverlay() {
               .catch(() => {})
           }}
           onClose={() => setAnnotationMenu(null)}
+        />
+      )}
+      {hoverAnnotation && !annotationMenu && (
+        <AnnotationTooltip
+          target={hoverAnnotation}
+          style={toolbarConfig?.style ?? storage.getDefaultToolbarConfig().style}
+          locale={locale}
         />
       )}
     </>
