@@ -43,14 +43,24 @@ export function getCategoryIconSet(
   return out
 }
 
-/** manifest 中声明的默认图标路径（Plasmo 产物带内容哈希，不能硬编码）。 */
+/**
+ * manifest 中声明的默认图标路径（Plasmo 产物带内容哈希，不能硬编码）。
+ * 必须补成根路径：`setIcon({path})` 对 manifest 里的相对路径会报
+ * “Failed to set icon 'x.png': Failed to fetch”（实测），只有 `/x.png` 能用。
+ */
 function defaultIconPaths(): Record<string, string> {
   try {
     const m = chrome.runtime.getManifest() as chrome.runtime.Manifest & {
       action?: { default_icon?: Record<string, string> }
     }
     const icons = m?.action?.default_icon || m?.icons
-    if (icons && typeof icons === "object") return icons as Record<string, string>
+    if (icons && typeof icons === "object") {
+      const out: Record<string, string> = {}
+      for (const [size, path] of Object.entries(icons as Record<string, string>)) {
+        out[size] = path.startsWith("/") ? path : `/${path}`
+      }
+      return out
+    }
   } catch {
     /* ignore */
   }

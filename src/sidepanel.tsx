@@ -14,6 +14,7 @@ import { CategoryPanel } from "@/components/CategoryPanel"
 import { HubAccount } from "@/components/HubAccount"
 import { HubShareDialog } from "@/components/HubShareDialog"
 import { MarkdownEditor } from "@/components/MarkdownEditor"
+import { PageAccess } from "@/components/PageAccess"
 import { ToolbarSettings } from "@/components/ToolbarSettings"
 
 /** 侧边栏的三个功能模块（标签页）：批注 / 分类 / 设置。 */
@@ -818,6 +819,7 @@ export default function SidePanel() {
 
       {/* Settings tab */}
       <div className={`flex-1 min-h-0 overflow-y-auto ${activeTab === "settings" ? "" : "hidden"}`}>
+        <PageAccess locale={locale} />
         <HubAccount locale={locale} />
         <ToolbarSettings locale={locale} />
       </div>

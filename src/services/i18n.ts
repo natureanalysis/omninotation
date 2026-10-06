@@ -237,6 +237,14 @@ const translations = {
     hubAuthFailed: (msg: string) => `操作失败：${msg}`,
     hubPermissionDenied: "未获得 knoweave.com 的访问权限",
     hubNeedLogin: "请先在「设置」中登录 KnoWeave",
+
+    // PageAccess
+    accessSectionTitle: "页面批注权限",
+    accessGrantedNote: "已启用：可以在网页上选词高亮、贴便签。",
+    accessMissingNote: "未启用：网页上的选词工具栏与高亮不可用，批注数据与收藏夹不受影响。",
+    accessEnable: "启用页面批注",
+    accessDeniedNote: "未授予权限。也可以在浏览器的扩展详情里把「在所有网站上」改为允许。",
+    accessReloadNote: "已启用，刷新页面后生效。",
     hubPrivacyNote: "分享时会将当前页面的批注、标题与网址发送到 KnoWeave，仅在点击分享后发送。",
     hubSharePage: "分享本页批注",
     hubShareSingle: "分享此批注",
@@ -511,6 +519,14 @@ const translations = {
     hubAuthFailed: (msg: string) => `Failed: ${msg}`,
     hubPermissionDenied: "Access to knoweave.com was not granted",
     hubNeedLogin: "Sign in to KnoWeave in Settings first",
+
+    // PageAccess
+    accessSectionTitle: "Page annotation access",
+    accessGrantedNote: "Enabled — select text, highlight and add sticky notes on web pages.",
+    accessMissingNote: "Not enabled — the selection toolbar and highlights won't work on web pages. Your annotations and bookmarks are unaffected.",
+    accessEnable: "Enable page annotations",
+    accessDeniedNote: "Access was not granted. You can also set \"All sites\" to allow on the extension's details page.",
+    accessReloadNote: "Enabled. Reload the page to apply.",
     hubPrivacyNote: "Sharing sends this page's annotations, title and URL to KnoWeave, only after you click share.",
     hubSharePage: "Share page annotations",
     hubShareSingle: "Share this annotation",
@@ -771,6 +787,12 @@ export interface TranslationKeys {
   hubAuthFailed: (msg: string) => string
   hubPermissionDenied: string
   hubNeedLogin: string
+  accessSectionTitle: string
+  accessGrantedNote: string
+  accessMissingNote: string
+  accessEnable: string
+  accessDeniedNote: string
+  accessReloadNote: string
   hubPrivacyNote: string
   hubSharePage: string
   hubShareSingle: string

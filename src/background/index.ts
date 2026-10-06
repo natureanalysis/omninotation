@@ -84,25 +84,6 @@ function setupContextMenu() {
   })()
 }
 
-/**
- * 确认已获得批注页面的权限。
- * 注意：`permissions.request()` 在 service worker 里总会被拒（“must be called during a
- * user gesture”），所以这里只在权限已就绪时返回 true；真正的授权入口必须是有手势的扩展页面。
- * 另外它会占用一次 IPC：任何要求用户手势的 API（如 `sidePanel.open()`）都不能排在它之后。
- */
-async function ensureOptionalPageAccess(tab?: chrome.tabs.Tab): Promise<boolean> {
-  if (!tab?.url) return false
-
-  const origins = ["https://*/*", "http://*/*"]
-  try {
-    const hasAccess = await chrome.permissions.contains({ origins })
-    if (hasAccess) return true
-    return await chrome.permissions.request({ origins })
-  } catch {
-    return false
-  }
-}
-
 chrome.runtime.onInstalled.addListener(() => {
   console.log("[OmniNotation] Extension installed")
   setupContextMenu()
@@ -185,33 +166,27 @@ function maybeSyncOnTabComplete(): void {
   void syncHubSubscriptions()
 }
 
-chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+chrome.contextMenus.onClicked.addListener((info, tab) => {
   const item = MARK_STYLE_ITEMS.find((i) => i.id === info.menuItemId)
   if (item && tab?.id && info.selectionText) {
     // 面板要在手势的同步调用栈里打开，await 之后就再也开不了（同 action.onClicked）
     if (tab.windowId) {
       void chrome.sidePanel.open({ windowId: tab.windowId }).catch(() => {})
     }
-    const tabId = tab.id
-    void (async () => {
-      await ensureOptionalPageAccess(tab)
-      chrome.tabs
-        .sendMessage(tabId, {
-          type: "CONTEXT_MENU_SAVE",
-          text: info.selectionText,
-          markStyle: item.style
-        })
-        .catch(() => {
-          // Content script may not be injected yet
-        })
-    })()
+    chrome.tabs
+      .sendMessage(tab.id, {
+        type: "CONTEXT_MENU_SAVE",
+        text: info.selectionText,
+        markStyle: item.style
+      })
+      .catch(() => {
+        // Content script may not be injected yet
+      })
   }
   if (info.menuItemId === "omninotation-delete-annotation" && tab?.id) {
-    await ensureOptionalPageAccess(tab)
     chrome.tabs.sendMessage(tab.id, { type: "CONTEXT_MENU_DELETE" }).catch(() => {})
   }
   if (info.menuItemId === "omninotation-copy-link-name" && tab?.id) {
-    await ensureOptionalPageAccess(tab)
     chrome.tabs.sendMessage(tab.id, { type: "COPY_LINK_NAME" }).catch(() => {})
   }
 })
@@ -272,7 +247,7 @@ async function closeSidePanel(windowId: number): Promise<void> {
 chrome.action.onClicked.addListener((tab) => {
   // `sidePanel.open()` 只在用户手势的同步调用栈里有效：这里一旦先 await（哪怕只是
   // permissions.contains 这类 IPC），手势就失效，open() 被拒、点图标毫无反应。
-  // 页面权限本来也不能在 SW 里 request（详见 ensureOptionalPageAccess），不再在此请求。
+  // 页面批注权限也只能在有手势的扩展页面申请（见 services/access.ts），后台不再碰它。
   const windowId = tab.windowId
   if (typeof windowId !== "number") return
   if (openPanels.has(windowId)) {
@@ -383,7 +358,7 @@ async function ensureIcons() {
 async function updateActionIcon(tabId: number, url: string | undefined) {
   if (!url || url.startsWith("chrome://") || url.startsWith("chrome-extension://")) {
     // Reset to default for internal pages
-    chrome.action.setIcon({ tabId, path: { 32: "/icon32.plasmo.76b92899.png" } })
+    await applyCategoryIcon(null, tabId)
     chrome.action.setBadgeText({ tabId, text: "" })
     return
   }
