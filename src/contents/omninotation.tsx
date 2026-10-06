@@ -95,6 +95,8 @@ export default function OmniNotationOverlay() {
   }, [])
   const lastSelectionRef = useRef<{ text: string; range: Range; rect?: DOMRect } | null>(null)
   const lastLinkText = useRef("")
+  /** 最近一次右键落在「被批注的链接」上的记录：原生链接菜单项靠它决定显示与动作。 */
+  const lastLinkAnnotation = useRef<{ annotationId: string; text: string; at: number } | null>(null)
   const modifierState = useRef({ ctrl: false, alt: false, shift: false })
   const pendingMiddleClick = useRef(false)
   const hasSelectionOnMouseDown = useRef(false)
@@ -377,14 +379,34 @@ export default function OmniNotationOverlay() {
     document.addEventListener("mousedown", handleGlobalMouseDown, true)
     document.addEventListener("mouseup", handleGlobalMouseUp, true)
 
-    // Context menu: 右击落在批注上时接管原生菜单，显示页内菜单
+    // Context menu: 右击落在批注上时接管原生菜单，显示页内菜单；
+    // 落在「被批注的链接」上时不接管，浏览器自己的链接菜单（新标签页、复制链接地址）还得用。
     const handleContextMenu = (e: MouseEvent) => {
       const target = e.target as HTMLElement
-      lastLinkText.current = (target.closest?.("a") as HTMLElement)?.textContent?.trim() || ""
+      const linkEl = target.closest?.("a[href]") as HTMLElement | null
+      lastLinkText.current = linkEl?.textContent?.trim() || ""
       const markEl = target.closest?.(`mark.${HIGHLIGHT_CLASS}`) as HTMLElement | null
       const stickyEl = target.closest?.(`.${STICKY_CLASS}`) as HTMLElement | null
       const annEl = markEl || stickyEl
       const annotationId = annEl?.dataset?.omninotationId || ""
+      lastLinkAnnotation.current =
+        linkEl && annotationId
+          ? { annotationId, text: (annEl.textContent || "").trim(), at: Date.now() }
+          : null
+      if (linkEl) {
+        // 链接的右键菜单是浏览器原生的，扩展只能靠 contextMenus 往里加项；
+        // 趁菜单还没开始构建，把这两项的可见性报给后台（Edge 没有 onShown 可用）。
+        try {
+          chrome.runtime.sendMessage({ type: "SET_LINK_MENU_VISIBLE", visible: !!annotationId }).catch(() => {})
+        } catch {
+          // 扩展刚重载，后台已经不接消息了
+        }
+      }
+      if (linkEl && annotationId) {
+        setAnnotationMenu(null)
+        setHoverAnnotation(null)
+        return
+      }
       if (!annEl || !annotationId) {
         setAnnotationMenu(null)
         return
@@ -581,6 +603,21 @@ export default function OmniNotationOverlay() {
         case "COPY_LINK_NAME":
           if (lastLinkText.current) navigator.clipboard.writeText(lastLinkText.current).catch(() => {})
           break
+        case "LINK_ANNOTATION_COPY": {
+          const text = lastLinkAnnotation.current?.text || lastLinkText.current
+          if (text) navigator.clipboard.writeText(text).catch(() => {})
+          break
+        }
+        case "LINK_ANNOTATION_DELETE": {
+          const hit = lastLinkAnnotation.current
+          if (!hit) break
+          lastLinkAnnotation.current = null
+          storage
+            .deleteAnnotation(location.href, hit.annotationId)
+            .then(() => removeAnnotationFromDom(hit.annotationId))
+            .catch(() => {})
+          break
+        }
       }
     }
     chrome.runtime?.onMessage?.addListener(messageListener)

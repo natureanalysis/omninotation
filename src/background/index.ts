@@ -34,14 +34,18 @@ const BG_STRINGS = {
     contextMenuUnderline: "U̲ 下划线",
     contextMenuStrikethrough: "S̶ 删除线",
     contextMenuSquiggly: "〰 波浪线",
-    contextMenuCopyLinkName: "复制链接名称"
+    contextMenuCopyLinkName: "复制链接名称",
+    contextMenuCopyText: "复制文本",
+    contextMenuDeleteAnnotation: "删除批注"
   },
   en: {
     contextMenuHighlight: "▌ Highlight",
     contextMenuUnderline: "U̲ Underline",
     contextMenuStrikethrough: "S̶ Strikethrough",
     contextMenuSquiggly: "〰 Squiggly",
-    contextMenuCopyLinkName: "Copy Link Name"
+    contextMenuCopyLinkName: "Copy Link Name",
+    contextMenuCopyText: "Copy text",
+    contextMenuDeleteAnnotation: "Delete annotation"
   }
 }
 
@@ -55,6 +59,25 @@ const MARK_STYLE_ITEMS = [
   { id: "omninotation-strikethrough", style: "strikethrough", titleKey: "contextMenuStrikethrough" as const },
   { id: "omninotation-squiggly", style: "squiggly", titleKey: "contextMenuSquiggly" as const }
 ] as const
+
+/**
+ * 「复制文本 / 删除批注」只在该链接确实被批注过时才出现。
+ * Edge 154 没有 `contextMenus.onShown`（实测 typeof 是 undefined），所以可见性由内容脚本
+ * 在 contextmenu 事件里同步报过来——那时原生菜单还没开始构建，赶得上这一次弹出。
+ */
+const LINK_ANNOTATION_ITEMS = ["omninotation-link-copy-text", "omninotation-link-delete-annotation"] as const
+
+function setLinkAnnotationItemsVisible(visible: boolean): void {
+  for (const id of LINK_ANNOTATION_ITEMS) {
+    try {
+      chrome.contextMenus.update(id, { visible }, () => {
+        void chrome.runtime.lastError
+      })
+    } catch {
+      // 菜单还没建好
+    }
+  }
+}
 
 function setupContextMenu() {
   // Menus are (re)created asynchronously after reading the locale preference.
@@ -73,6 +96,14 @@ function setupContextMenu() {
         title: S.contextMenuCopyLinkName,
         contexts: ["link"]
       })
+      for (const id of LINK_ANNOTATION_ITEMS) {
+        chrome.contextMenus.create({
+          id,
+          title: S[id === "omninotation-link-copy-text" ? "contextMenuCopyText" : "contextMenuDeleteAnnotation"],
+          contexts: ["link"],
+          visible: false
+        })
+      }
     })
   })()
 }
@@ -179,6 +210,12 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === "omninotation-copy-link-name" && tab?.id) {
     chrome.tabs.sendMessage(tab.id, { type: "COPY_LINK_NAME" }).catch(() => {})
   }
+  if (info.menuItemId === "omninotation-link-copy-text" && tab?.id) {
+    chrome.tabs.sendMessage(tab.id, { type: "LINK_ANNOTATION_COPY" }).catch(() => {})
+  }
+  if (info.menuItemId === "omninotation-link-delete-annotation" && tab?.id) {
+    chrome.tabs.sendMessage(tab.id, { type: "LINK_ANNOTATION_DELETE" }).catch(() => {})
+  }
 })
 
 // Listen for tab updates to notify content scripts about URL changes
@@ -215,6 +252,10 @@ try {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "HIGHLIGHT_CLICKED" && sender.tab?.windowId) {
     chrome.sidePanel.open({ windowId: sender.tab.windowId }).catch(() => {})
+  }
+  // 右键落在被批注的链接上时，才把「复制文本 / 删除批注」挂进原生链接菜单
+  if (message.type === "SET_LINK_MENU_VISIBLE") {
+    setLinkAnnotationItemsVisible(!!message.visible)
   }
   // 页面选区点击「添加批注」后打开侧边栏，让用户在笔记面板中编辑
   if (message.type === "OPEN_SIDE_PANEL") {
