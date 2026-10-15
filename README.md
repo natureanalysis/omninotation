@@ -13,7 +13,8 @@
   <a href="#installation">Installation</a> •
   <a href="#usage">Usage</a> •
   <a href="#development">Development</a> •
-  <a href="#changelog">Changelog</a>
+  <a href="#changelog">Changelog</a> •
+  <a href="https://knoweave.com/tools/omninotation/">Website</a>
 </p>
 
 ---
@@ -59,7 +60,7 @@ Key highlights:
 | **Global Search** | Search across all annotations, quotes, replies, and tags from the bookmark dashboard. |
 | **SPA Support** | MutationObserver with smart re-rendering — only re-renders when highlight count mismatch is detected. |
 | **Selection Toolbar** | Select text on any page to pop up a floating toolbar with annotate, **copy**, and multi-engine search options. |
-| **Multi-Engine Search** | Search selected text via Google, Bing, Wikipedia, PubMed, Google Scholar, and custom engines. Supports new-tab control and offline icon caching. |
+| **Multi-Engine Search** | Search selected text via Google, Google Scholar, PubMed, Wikipedia, [KnoWeave](https://knoweave.com) and custom engines. Supports new-tab control and offline icon caching. |
 | **Copy Selection** | One-click copy selected text from the floating toolbar. |
 | **Engine Icon Management** | Search engine icons are downloaded to `assets/icons/` for offline use. Custom engines auto-download icons; manual download button available in settings. Emoji or Chinese characters can also be used as icons. |
 | **Export / Import (Markdown)** | Backup and restore all your data as Markdown files. |
@@ -146,7 +147,7 @@ Open the side panel → **Floating Menu Settings** to manage search engines:
 
 - **Page Tags**: Click "＋ Tag" in the side panel header to add tags to the current page.
 - **Page Categories**: Pick a category in the side panel's Categories tab; the toolbar icon follows the category color.
-- **Sharing**: Sign in to KnoWeave in the Settings tab, then share selected annotations (accounts are created on the website).
+- **Sharing**: Sign in to [KnoWeave](https://knoweave.com) in the Settings tab, then share selected annotations (accounts are created on the website).
 
 ### Bookmark Dashboard
 
@@ -273,7 +274,7 @@ OmniNotation 是一款 Chrome 浏览器扩展，将任意网页变成可批注�
 | **多级收藏夹** | 在选项页中用文件夹组织收藏页面，支持无限嵌套 |
 | **全局搜索** | 在收藏夹中跨页面搜索批注内容、引用、回复和标签 |
 | **浮动工具栏** | 选中文字弹出工具栏，支持标注、复制、多引擎搜索 |
-| **搜索引擎管理** | 支持自定义搜索引擎，图标自动下载到本地，也可用 Emoji/汉字替代 |
+| **搜索引擎管理** | 内置 Google、Google Scholar、PubMed、维基百科、[KnoWeave](https://knoweave.com) 等引擎，支持自定义，图标自动下载到本地，也可用 Emoji/汉字替代 |
 | **导出/导入 (Markdown)** | Markdown 格式备份与恢复，便于阅读和版本控制 |
 | **SPA 适配** | 智能检测单页应用导航，仅在必要时重新渲染高亮 |
 
@@ -316,7 +317,7 @@ npm run build
 **标签与分类**：
 - 点击"＋ 标签"为当前页面添加标签
 - 在侧边栏「分类」页选择页面分类，工具栏图标随之变色
-- 在「设置」里登录 KnoWeave 后可勾选分享批注（注册账号在网站上完成）
+- 在「设置」里登录 [KnoWeave](https://knoweave.com) 后可勾选分享批注（注册账号在网站上完成）
 
 **收藏夹仪表盘**：
 - 点击侧边栏 📊 按钮打开收藏夹管理器

@@ -50,5 +50,14 @@
     "urlTemplate": "https://www.zdic.net/hans/%s",
     "favicon": "汉",
     "sources": []
+  },
+  {
+    "id": "knoweave",
+    "name": "KnoWeave",
+    "urlTemplate": "https://knoweave.com/search?q=%s",
+    "favicon": "",
+    "sources": [
+      "https://knoweave.com/knoweave.ico"
+    ]
   }
 ]
