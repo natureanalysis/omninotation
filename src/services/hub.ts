@@ -371,9 +371,9 @@ export async function hubDeleteWebPage(pageId: string): Promise<void> {
   if (!res.ok) throw new HubApiError(res.status, await readErrorMessage(res))
 }
 
-/** 网页分享详情页链接（KnoWeave 前端为 hash 路由 `#/webpage/:id`）。 */
+/** 网页分享详情页链接（KnoWeave 前端自 2026-10-03 起为真路径 `/w/:id`）。 */
 export async function hubWebPageUrl(pageId: string): Promise<string> {
-  return `${HUB_BASE_URL}/#/webpage/${pageId}`
+  return `${HUB_BASE_URL}/w/${encodeURIComponent(pageId)}`
 }
 
 // ========================

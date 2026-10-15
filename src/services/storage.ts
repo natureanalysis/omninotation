@@ -16,7 +16,11 @@ export function normalizePageUrl(url: string): string {
       return value.split("#")[0]
     }
 
-    u.hash = ""
+    // SPA hash routing: `#/a/slug` is part of the page identity (e.g.
+    // knoweave.com/#/a/nature-reviews-…), while pure anchors (#top, #section)
+    // are not. Keep the former, strip the latter. Must stay byte-identical
+    // with hub-webpages.rs::normalize_page_url.
+    if (!u.hash.startsWith("#/")) u.hash = ""
     u.hostname = u.hostname.toLowerCase()
     let normalized = u.toString()
     if (!u.search && normalized.endsWith("/")) normalized = normalized.slice(0, -1)

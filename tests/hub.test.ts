@@ -242,8 +242,8 @@ describe("share history", () => {
 })
 
 describe("hubWebPageUrl", () => {
-  it("builds a hash-route link to the webpage detail page", async () => {
-    assert.equal(await hubWebPageUrl("abc"), `${HUB_BASE_URL}/#/webpage/abc`)
+  it("builds a real-path link to the webpage detail page", async () => {
+    assert.equal(await hubWebPageUrl("abc"), `${HUB_BASE_URL}/w/abc`)
   })
 })
 
