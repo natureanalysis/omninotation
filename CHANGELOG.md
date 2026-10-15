@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.0 — 2026-10-16
 
 ### 划词工具栏内置 KnoWeave 引擎
 
@@ -37,6 +37,11 @@
 ### 工具栏图标
 
 - `restoreDefaultIcon` 此前拿 manifest 里的相对路径去调 `setIcon({path})`，实测报 `Failed to set icon 'x.png': Failed to fetch`，只有根路径 `/x.png` 可用；内部页面的图标重置也去掉了硬编码的 Plasmo 哈希文件名（该文件名在 prod 产物里并不存在）。
+
+### 分享链接与页面身份
+
+- **分享详情链接改用真路径**：`hubWebPageUrl` 由 `#/webpage/:id` 改为 `/w/:id`（KnoWeave 前端自 2026-10-03 起不再使用 hash 路由），并对 id 做 `encodeURIComponent`。
+- **SPA hash 路由纳入页面身份**：`normalizePageUrl` 只在 hash 不以 `#/` 开头时才剥离——`#/a/slug` 这类 hash 路由属于页面地址的一部分（如 `knoweave.com/#/a/nature-reviews-…`），纯锚点（`#top`、`#section`）仍然去掉。需与后端 `hub-webpages.rs::normalize_page_url` 保持字节级一致。
 
 ## v0.2.2 — 2026-10-06
 
