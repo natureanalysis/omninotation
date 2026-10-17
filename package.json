@@ -1,7 +1,7 @@
 {
   "name": "omninotation",
   "displayName": "OmniNotation",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Highlights, sticky notes, bookmarks and multi-engine search for any web page. Side Panel, local-first, free and open source.",
   "author": "OmniNotation Team",
   "scripts": {
