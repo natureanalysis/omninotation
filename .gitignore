@@ -42,3 +42,6 @@ build.bat
 # 定稿见 assets/logo/
 /omninotation-logo.miora
 /omninotation-logo_assets/
+
+# WorkBuddy 本地记忆（不入库）
+/.workbuddy/
