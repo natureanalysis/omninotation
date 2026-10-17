@@ -36,7 +36,6 @@ Key highlights:
 - 🔄 **Bidirectional Navigation** — Click a highlight to open the side panel & jump to its annotation; click an annotation card to scroll to its highlight
 - 🎨 **4 Highlight Styles + Per-Annotation Color** — Highlight, underline, strikethrough, squiggly underline; each annotation can have its own color
 - 🌙 **Dark Mode Aware** — Highlight colors automatically deepen when the system prefers dark mode
-- 🔗 **Right-click Menu on Links** — Copy a link's display text with one click, straight from the browser's native context menu
 - 📁 **Nested Bookmark Folders** — Multi-level folder organization for your annotated pages
 - 🔖 **Auto-Bookmark** — Pages with annotations are automatically bookmarked
 - 🏷️ **Page-Level Tags & Visibility** — Tag and control access per page, not per annotation
@@ -46,20 +45,19 @@ Key highlights:
 
 ## Screenshots
 
+<p align="center">
+  <img src="docs/screenshot-annotations-en.png" alt="Highlights on the page with the annotation list in the Side Panel">
+</p>
+<p align="center"><sub><b>Highlights on the page</b> — selections stay anchored across reloads, and every mark has its own note, color and reply thread in the Side Panel</sub></p>
+
 <table>
   <tr>
-    <td width="62%" align="center"><img src="docs/screenshot-annotations-en.png" alt="Annotations in the side panel"></td>
-    <td width="38%" align="center"><img src="docs/screenshot-bookmarks-en.png" alt="Bookmark dashboard"></td>
+    <td width="58%" align="center"><img src="docs/screenshot-selection-toolbar-en.png" alt="Selection toolbar with multi-engine search"></td>
+    <td width="42%" align="center"><img src="docs/screenshot-bookmarks-en.png" alt="Bookmark dashboard"></td>
   </tr>
   <tr>
-    <td align="center"><sub>Highlights on the page + annotations in the Side Panel</sub></td>
-    <td align="center"><sub>Bookmark dashboard with folders, tags and categories</sub></td>
-  </tr>
-  <tr>
-    <td colspan="2" align="center">
-      <img src="docs/screenshot-context-menu-en.png" alt="Right-click menu with Copy Link Name">
-      <br><sub>Right-click a link → <b>OmniNotation ▸ Copy Link Name</b> copies the link's display text</sub>
-    </td>
+    <td align="center"><sub>Select text → annotate, copy, or search the selection across search engines</sub></td>
+    <td align="center"><sub>Bookmark dashboard: folders, tags, page categories</sub></td>
   </tr>
 </table>
 
@@ -157,6 +155,11 @@ OmniNotation adds its items to the browser's **own** context menu, so everything
 - **Mark styles** — Right-click selected text to save it with a mark style (▌ / U̲ / S̶ / 〰).
 - **Links inside an annotation** — Right-click a link that is part of an annotated highlight and two more items appear: **Copy text** and **Delete annotation**.
 - **Highlights and sticky notes** — Right-click a mark or sticky note that is not a link to open the in-page menu with **Copy text** / **Delete annotation**.
+
+<p align="center">
+  <img src="docs/screenshot-context-menu-en.png" width="420" alt="Right-click menu with Copy Link Name">
+  <br><sub>OmniNotation ▸ Copy Link Name</sub>
+</p>
 
 ### Selection Toolbar
 

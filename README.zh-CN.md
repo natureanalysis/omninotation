@@ -36,7 +36,6 @@ OmniNotation 是一款 Chrome 浏览器扩展，将任意网页变成可批注�
 - 🔄 **双向导航** — 点击高亮打开侧边栏并定位；点击批注卡片页面滚动到高亮处
 - 🎨 **4 种标记样式 + 单条改色** — 高亮、下划线、删除线、波浪线，每条批注可单独设色
 - 🌙 **暗色模式适配** — 检测系统暗色模式，高亮颜色自动加深
-- 🔗 **链接右键菜单** — 在浏览器原生右键菜单里一键复制链接名称
 - 📁 **多级收藏夹** — 收藏页面可放入无限嵌套的文件夹
 - 🔖 **自动收藏** — 有批注的页面自动进入收藏
 - 🏷️ **页面级标签与可见性** — 按页面打标签、控权限，而不是按批注
@@ -46,20 +45,19 @@ OmniNotation 是一款 Chrome 浏览器扩展，将任意网页变成可批注�
 
 ## 截图
 
+<p align="center">
+  <img src="docs/screenshot-annotations-zh.png" alt="页面高亮与侧边栏批注列表">
+</p>
+<p align="center"><sub><b>页面高亮</b> —— 选中即锚定，刷新不丢；每条批注在侧边栏里各自带颜色、笔记与回复</sub></p>
+
 <table>
   <tr>
-    <td width="62%" align="center"><img src="docs/screenshot-annotations-zh.png" alt="侧边栏批注列表"></td>
-    <td width="38%" align="center"><img src="docs/screenshot-bookmarks-zh.png" alt="收藏夹面板"></td>
+    <td width="58%" align="center"><img src="docs/screenshot-selection-toolbar-zh.png" alt="划词工具栏与多引擎搜索"></td>
+    <td width="42%" align="center"><img src="docs/screenshot-bookmarks-zh.png" alt="收藏夹面板"></td>
   </tr>
   <tr>
-    <td align="center"><sub>页面高亮 + 侧边栏批注卡片</sub></td>
+    <td align="center"><sub>选中文字 → 标注、复制，或用多引擎搜索选区</sub></td>
     <td align="center"><sub>收藏夹面板：文件夹、标签、页面分类</sub></td>
-  </tr>
-  <tr>
-    <td colspan="2" align="center">
-      <img src="docs/screenshot-context-menu-zh.png" alt="右键菜单中的复制链接名称">
-      <br><sub>右键链接 → <b>OmniNotation ▸ 复制链接名称</b>，一键复制链接文字</sub>
-    </td>
   </tr>
 </table>
 
@@ -133,6 +131,11 @@ OmniNotation 把菜单项挂进浏览器**自己的**右键菜单，页面自带
 - **标记样式** —— 右键选中的文字，直接以高亮/下划线/删除线/波浪线保存。
 - **批注里的链接** —— 右键落在「被批注的链接」上时，额外出现**复制文本**与**删除批注**两项。
 - **高亮与便签** —— 右键非链接的高亮或便签，弹出页内菜单：**复制文本** / **删除批注**。
+
+<p align="center">
+  <img src="docs/screenshot-context-menu-zh.png" width="420" alt="右键菜单中的复制链接名称">
+  <br><sub>OmniNotation ▸ 复制链接名称</sub>
+</p>
 
 ### 浮动工具栏
 
